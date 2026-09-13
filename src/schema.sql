@@ -51,3 +51,6 @@ CREATE INDEX IF NOT EXISTS idx_sale_payments_sale ON sale_payments(sale_id);
 -- ConstruGest 2.1 - Configuracoes
 CREATE TABLE IF NOT EXISTS app_settings(id INT PRIMARY KEY DEFAULT 1 CHECK(id=1), data JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ DEFAULT now());
 INSERT INTO app_settings(id,data) VALUES(1,'{}'::jsonb) ON CONFLICT (id) DO NOTHING;
+
+-- ConstruGest 2.5 - Controle, Permissoes e Seguranca
+ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '{}'::jsonb;
