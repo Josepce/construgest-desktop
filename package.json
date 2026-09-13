@@ -41,15 +41,21 @@
         "portable",
         "nsis"
       ],
-      "artifactName": "ConstruGest-${version}-${arch}.${ext}"
+      "artifactName": "ConstruGest-Portable-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "ConstruGest"
+      "shortcutName": "ConstruGest",
+      "artifactName": "ConstruGest-Setup-${version}-${arch}.${ext}"
     },
-    "artifactName": "ConstruGest-Desktop-Standalone-${version}-${arch}.${ext}"
-  }
+    "asarUnpack": [
+      "node_modules/@electric-sql/pglite/**/*"
+    ],
+    "publish": null
+  },
+  "description": "ConstruGest ERP/PDV desktop standalone para lojas de materiais de construção",
+  "author": "ConstruGest"
 }
