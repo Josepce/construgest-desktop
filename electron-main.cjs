@@ -1,6 +1,7 @@
 const { app, BrowserWindow, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 let win;
 async function startServer(){
@@ -8,7 +9,8 @@ async function startServer(){
   fs.mkdirSync(dataDir,{recursive:true});
   process.env.ELECTRON_DATA_DIR = dataDir;
   process.env.PORT = '3210';
-  process.env.JWT_SECRET = process.env.JWT_SECRET || 'construgest-desktop-local-session-key';
+  process.env.HOST = '0.0.0.0';
+  process.env.JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
   try {
     await import('./src/server.js');
   } catch (e) {

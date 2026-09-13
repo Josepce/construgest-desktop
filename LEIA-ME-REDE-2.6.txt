@@ -1,0 +1,24 @@
+CONSTRUGEST 2.6.0 - REDE LOCAL (FASE 1)
+
+COMO FUNCIONA
+- O computador onde o ConstruGest Desktop está aberto funciona como SERVIDOR PRINCIPAL.
+- O banco de dados continua armazenado somente nesse computador.
+- Outros computadores na mesma rede Wi-Fi/cabo acessam o sistema pelo navegador.
+- Todos trabalham sobre o mesmo banco de dados e os mesmos cadastros.
+
+COMO USAR
+1. Abra o ConstruGest 2.6 no computador principal.
+2. Entre como Administrador.
+3. Abra Configurações > Ver acesso em rede.
+4. Copie o endereço mostrado, por exemplo: http://192.168.0.10:3210
+5. No outro computador, conectado à mesma rede, abra Chrome/Edge e digite esse endereço.
+6. Entre com o usuário e senha daquele funcionário.
+
+FIREWALL
+Na primeira vez, o Windows pode pedir permissão de rede. Permita acesso somente em REDES PRIVADAS.
+
+IMPORTANTE
+- O computador principal deve permanecer ligado e com o ConstruGest aberto.
+- Esta fase é para REDE LOCAL. Não exponha a porta 3210 diretamente à internet.
+- Faça backups regularmente.
+- Cada funcionário deve usar seu próprio usuário.
