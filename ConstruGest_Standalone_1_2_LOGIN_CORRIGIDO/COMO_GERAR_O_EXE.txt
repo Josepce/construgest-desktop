@@ -1,0 +1,24 @@
+CONSTRUGEST DESKTOP STANDALONE 1.1
+=================================
+
+Esta edição NÃO precisa de PostgreSQL, Docker nem arquivo .env.
+O banco fica armazenado localmente no Windows, dentro da pasta de dados do aplicativo.
+
+COMO GERAR O EXE
+1. Extraia TODO o ZIP para uma pasta normal, por exemplo C:\ConstruGest.
+2. Execute 01_INSTALAR_DEPENDENCIAS.bat.
+3. Aguarde a instalação terminar.
+4. Execute 03_TESTAR_DESKTOP.bat para testar (recomendado).
+5. Feche o teste e execute 02_GERAR_EXE_E_INSTALADOR.bat.
+6. Ao terminar, a pasta dist será aberta.
+7. Use o instalador NSIS para instalar o ConstruGest no Windows.
+
+PRIMEIRO LOGIN
+E-mail: admin@construgest.local
+Senha: Admin@123
+
+IMPORTANTE
+- A primeira preparação/compilação precisa de internet para baixar Electron, PGlite e ferramentas de build.
+- Depois de instalado, o uso normal do ConstruGest não depende de internet.
+- Faça backups dos dados comerciais importantes. Esta edição é local para um único computador.
+- Para vários computadores simultâneos, use futuramente a edição Rede/Servidor com PostgreSQL centralizado.

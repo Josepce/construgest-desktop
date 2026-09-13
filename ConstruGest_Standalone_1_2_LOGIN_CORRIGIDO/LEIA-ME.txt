@@ -1,0 +1,47 @@
+CONSTRUGEST PRO v4.2
+====================
+
+Versão evoluída da v4.1, preservando PostgreSQL, autenticação, compras, financeiro e auditoria.
+
+PRINCIPAIS NOVIDADES v4.2
+- Interface totalmente redesenhada e responsiva.
+- Busca global por nome, código e EAN.
+- PDV com busca instantânea e leitura de código/EAN.
+- Carrinho com atualização de quantidade e preço varejo/atacado/promoção.
+- Pagamento misto (Dinheiro, PIX, Débito, Crédito e Crediário).
+- Desconto manual restrito a Administrador/Gerente.
+- Cadastro completo de produtos em formulário (sem prompt).
+- Calculadora visual de margem no cadastro.
+- Histórico individual do produto / Kardex.
+- Histórico de clientes e fornecedores.
+- Inventário físico com contagem e ajuste auditado de estoque.
+- Fechamento de caixa com resumo e diferença esperado x contado.
+- Dashboard com vendas de 7 dias e formas de pagamento.
+- Comprovante de venda e etiquetas.
+- Auditoria das operações críticas.
+
+COMO EXECUTAR (RECOMENDADO)
+1. Instale o Docker Desktop.
+2. Extraia este ZIP para uma pasta.
+3. Abra o terminal nessa pasta.
+4. Execute: docker compose up
+5. Aguarde a instalação/inicialização.
+6. Abra: http://localhost:3000
+
+PRIMEIRO ACESSO
+E-mail: admin@construgest.local
+Senha: Admin@123
+
+IMPORTANTE
+- Troque a senha e o JWT_SECRET antes de uso real/produção.
+- O banco fica persistido no volume Docker construgest_data.
+- Se você já usa a v4.1 com o mesmo volume PostgreSQL, o schema usa CREATE/ALTER IF NOT EXISTS para evoluir a base sem apagar os registros existentes.
+- Faça backup do banco antes de qualquer atualização em ambiente real.
+- Esta versão ainda não emite NF-e/NFC-e e não substitui software fiscal homologado.
+
+ESTRUTURA
+src/server.js   API, autenticação e regras de negócio
+src/schema.sql  Banco e migrações idempotentes
+public/         Interface web
+
+VERSÃO: 4.2.0

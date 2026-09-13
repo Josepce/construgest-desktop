@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: construgest
+      POSTGRES_USER: construgest
+      POSTGRES_PASSWORD: construgest
+    ports: ["5432:5432"]
+    volumes: [construgest_data:/var/lib/postgresql/data]
+  app:
+    image: node:20-alpine
+    working_dir: /app
+    volumes: [.:/app]
+    command: sh -c "npm install && npm start"
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgres://construgest:construgest@db:5432/construgest
+      JWT_SECRET: altere-em-producao
+    ports: ["3000:3000"]
+    depends_on: [db]
+volumes:
+  construgest_data:

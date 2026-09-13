@@ -1,0 +1,12 @@
+ConstruGest Desktop Standalone 1.1
+
+Mudança principal: PostgreSQL externo foi substituído por PostgreSQL embarcado via PGlite.
+Não é necessário instalar PostgreSQL, Docker ou configurar DATABASE_URL/.env.
+
+O banco persistente é criado automaticamente na pasta de dados do ConstruGest no perfil do Windows.
+
+Login inicial:
+admin@construgest.local
+Admin@123
+
+Antes de uso comercial definitivo, valide todos os fluxos de venda, estoque, caixa, compras, financeiro, impressão e backup com dados de teste.
