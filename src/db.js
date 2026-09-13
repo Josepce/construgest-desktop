@@ -9,14 +9,25 @@ const dataDir = process.env.ELECTRON_DATA_DIR || path.resolve(process.cwd(), 'co
 fs.mkdirSync(dataDir, { recursive: true });
 const db = new PGlite(dataDir);
 
+function normalizeResult(result) {
+  // PGlite usa affectedRows; o servidor original foi escrito para pg, que usa rowCount.
+  // Normalizamos aqui para manter compatibilidade com todas as rotas.
+  if (result && result.rowCount == null) {
+    result.rowCount = Array.isArray(result.rows) ? result.rows.length : (result.affectedRows ?? 0);
+  }
+  return result;
+}
+
+async function query(sql, params = []) {
+  return normalizeResult(await db.query(sql, params));
+}
+
 export const pool = {
-  async query(sql, params = []) {
-    return db.query(sql, params);
-  },
+  query,
   async connect() {
     // Mantém compatibilidade com a API que o servidor já usa.
     return {
-      query: (sql, params = []) => db.query(sql, params),
+      query,
       release() {}
     };
   }
@@ -30,7 +41,7 @@ export async function initDb() {
 
 export async function tx(fn) {
   return db.transaction(async trx => {
-    const client = { query: (sql, params = []) => trx.query(sql, params), release() {} };
+    const client = { query: async (sql, params = []) => normalizeResult(await trx.query(sql, params)), release() {} };
     return fn(client);
   });
 }
