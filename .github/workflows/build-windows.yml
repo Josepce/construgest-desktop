@@ -1,0 +1,47 @@
+name: Gerar ConstruGest Windows EXE
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+
+      - name: Verificar projeto
+        run: |
+          node --check src/server.js
+          node --check electron-main.cjs
+
+      - name: Gerar EXE portatil
+        run: npx electron-builder --win portable --x64
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Gerar instalador
+        run: npx electron-builder --win nsis --x64
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Disponibilizar EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: ConstruGest-Windows
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 30
