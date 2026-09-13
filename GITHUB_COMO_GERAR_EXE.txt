@@ -1,0 +1,39 @@
+CONSTRUGEST DESKTOP STANDALONE 1.1 - GERAR EXE PELO GITHUB
+===========================================================
+
+O projeto ja contem o workflow:
+.github/workflows/build-windows.yml
+
+PASSO A PASSO (sem compilar no seu PC)
+
+1. Crie uma conta no GitHub, caso ainda nao tenha.
+2. Crie um repositorio NOVO e PRIVADO, por exemplo: construgest-desktop.
+3. Envie TODO o conteudo desta pasta para a raiz do repositorio.
+   Importante: a pasta .github tambem deve ser enviada.
+4. No repositorio, clique na aba "Actions".
+5. Abra "Gerar ConstruGest Windows EXE".
+6. Clique "Run workflow" e confirme em "Run workflow".
+7. Aguarde o processo ficar verde.
+8. Abra a execucao concluida e, no final da pagina, procure "Artifacts".
+9. Baixe "ConstruGest-Windows-1.1.0".
+10. O ZIP baixado pelo GitHub contera os arquivos .exe gerados.
+
+O workflow gera:
+- EXE portatil (abre sem instalacao)
+- Instalador NSIS do ConstruGest
+
+BANCO DE DADOS
+Esta edicao usa PGlite local. Nao exige PostgreSQL, Docker nem arquivo .env.
+Os dados sao gravados na pasta de dados do aplicativo do Windows.
+
+LOGIN INICIAL
+E-mail: admin@construgest.local
+Senha: Admin@123
+
+RELEASE AUTOMATICA (opcional)
+Se no futuro voce criar/enviar uma tag como v1.1.0, o mesmo workflow tambem
+pode anexar os EXEs a uma Release do GitHub.
+
+SEGURANCA
+Mantenha o repositorio privado enquanto o sistema estiver em desenvolvimento.
+Troque a senha do administrador depois do primeiro acesso.

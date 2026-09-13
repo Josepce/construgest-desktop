@@ -1,0 +1,55 @@
+{
+  "name": "construgest-desktop-standalone",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "desktop": "electron .",
+    "build:win": "electron-packager . ConstruGest --platform=win32 --arch=x64 --out=dist --overwrite --prune=true",
+    "build:portable": "electron-builder --win portable --x64",
+    "build:setup": "electron-builder --win nsis --x64",
+    "build:all": "electron-builder --win portable nsis --x64"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "@electric-sql/pglite": "^0.3.8"
+  },
+  "main": "electron-main.cjs",
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-packager": "^17.1.2",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "br.com.construgest.desktop",
+    "productName": "ConstruGest",
+    "asar": true,
+    "files": [
+      "electron-main.cjs",
+      "package.json",
+      "public/**/*",
+      "src/**/*",
+      ".env.example"
+    ],
+    "win": {
+      "target": [
+        "portable",
+        "nsis"
+      ],
+      "artifactName": "ConstruGest-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ConstruGest"
+    },
+    "artifactName": "ConstruGest-Desktop-Standalone-${version}-${arch}.${ext}"
+  }
+}
