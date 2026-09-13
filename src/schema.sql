@@ -47,3 +47,7 @@ CREATE TABLE IF NOT EXISTS inventory_count_items(id SERIAL PRIMARY KEY,count_id 
 CREATE INDEX IF NOT EXISTS idx_products_code_lower ON products(lower(code));
 CREATE INDEX IF NOT EXISTS idx_products_ean ON products(ean);
 CREATE INDEX IF NOT EXISTS idx_sale_payments_sale ON sale_payments(sale_id);
+
+-- ConstruGest 2.1 - Configuracoes
+CREATE TABLE IF NOT EXISTS app_settings(id INT PRIMARY KEY DEFAULT 1 CHECK(id=1), data JSONB NOT NULL DEFAULT '{}'::jsonb, updated_at TIMESTAMPTZ DEFAULT now());
+INSERT INTO app_settings(id,data) VALUES(1,'{}'::jsonb) ON CONFLICT (id) DO NOTHING;
