@@ -16,7 +16,7 @@ const ROLE_VIEWS={
 function canView(v){if(me?.role==='Administrador')return true;let base=ROLE_VIEWS[me?.role]||[];if(v==='financeiro'&&hasPerm('financial'))return true;if(['reposicao','estoque','inventario','compras','fornecedores'].includes(v)&&hasPerm('stock'))return true;return base.includes(v)}
 
 const subtitles={dashboard:'Resumo da operação e indicadores do negócio',pdv:'Venda rápida, preços automáticos e múltiplos pagamentos',vendas:'Consulte, imprima e estorne vendas',orcamentos:'Crie propostas e converta em vendas',produtos:'Preços, margens e cadastro do catálogo',estoque:'Kardex e histórico de entradas e saídas',inventario:'Contagem e acerto físico de estoque',compras:'Pedidos, recebimento e custo médio',fornecedores:'Cadastro e histórico de fornecedores',clientes:'Cadastro e histórico de clientes',financeiro:'Contas a pagar, receber e resultado',relatorios:'Indicadores gerenciais, backup e restauração',usuarios:'Acessos e níveis de permissão',auditoria:'Rastreabilidade das operações',configuracoes:'Empresa, vendas, estoque, segurança e preferências do sistema'};
-// ConstruGest 2.9.0 - PDV Caixa Rápido Estabilizado
+// ConstruGest 2.9.1 - Controle de Preços e Descontos
 function getViewHandler(v){
   switch(v){
     case 'dashboard': return dashboard; case 'pdv': return pdv; case 'vendas': return vendas;
@@ -47,6 +47,11 @@ async function printLabel(id){let p=(await api('/products')).find(x=>x.id===id),
 async function printQuote(id){let [qlist,items,cfg]=await Promise.all([api('/quotes'),api('/quotes/'+id+'/items'),api('/settings')]),q=qlist.find(x=>x.id===id),c=cfg.company||{};if(!q)return;let w=window.open('','_blank','width=900,height=800');w.document.write(`<!doctype html><html><head><meta charset=utf-8><title>Orçamento #${q.id}</title>${printBaseStyles()}</head><body><div class=doc>${companyBlock(c)}<div class=doc-title><div><h2>ORÇAMENTO #${q.id}</h2><span class=muted>Emitido em ${new Date(q.created_at||Date.now()).toLocaleDateString('pt-BR')}</span></div><div>Validade: <b>${q.valid_until?new Date(q.valid_until).toLocaleDateString('pt-BR'):'—'}</b></div></div><div class=info>Cliente: <b>${esc(q.customer||'Consumidor Final')}</b></div><table><tr><th>Produto</th><th>Qtd.</th><th class=r>Unitário</th><th class=r>Total</th></tr>${items.map(i=>`<tr><td>${esc(i.description)}</td><td>${num(i.qty)}</td><td class=r>${money(i.unit_price)}</td><td class=r>${money(+i.qty*+i.unit_price)}</td></tr>`).join('')}</table><div class=total>Total do orçamento: ${money(q.total)}</div><div class=footer>${esc(cfg.sales?.quote_message||'Orçamento sujeito à disponibilidade de estoque e validade informada.')}</div></div><script>print()<\/script></body></html>`);w.document.close()}
 function convertQuote(id){modal(`<h3>Converter orçamento #${id}</h3><label>Forma de pagamento</label><select id=quotePayment><option>Dinheiro</option><option selected>PIX</option><option>Cartão Débito</option><option>Cartão Crédito</option><option>Crediário</option></select><div style="margin-top:18px"><button class=primary onclick="confirmConvertQuote(${id})">CONVERTER EM VENDA</button> <button onclick=closeModal()>Cancelar</button></div>`)}async function confirmConvertQuote(id){try{let s=await api('/quotes/'+id+'/convert',{method:'POST',body:JSON.stringify({payment_method:quotePayment.value})});closeModal();toast('Convertido em venda #'+s.id);render('orcamentos')}catch(e){toast(e.message)}}
 let pdvSelected=-1;
+let pdvApprovalToken=null,pdvApprovalBy='',pdvPendingAction=null,pdvFinishing=false;
+function pdvUnitPrice(i){return i&&Number.isFinite(+i.manual_price)?+i.manual_price:bestPrice(i.product,i.qty)}
+function pdvDiscountPct(){return Math.max(0,Math.min(100,+document.getElementById('pdvDiscount')?.value||0))}
+function pdvDiscountAmount(){return cartSubtotal()*pdvDiscountPct()/100}
+
 
 function pdvPriceKind(i){
   let pr=bestPrice(i.product,i.qty),p=i.product,today=new Date().toISOString().slice(0,10);
@@ -61,7 +66,7 @@ function pdvSelectedItem(){
 function legacyItemsHtml(){
   if(!cart.length)return '<tr><td colspan="7" class="legacy-empty">Aguardando produtos...</td></tr>';
   return cart.map((x,i)=>{
-    let pr=bestPrice(x.product,x.qty);
+    let pr=pdvUnitPrice(x);
     return `<tr class="pdv-cart-row ${pdvSelected===i?'selected':''}" onclick="selectPdvItem(${i})">
       <td>${i+1}</td><td>${esc(x.code||'')}</td>
       <td><b>${esc(x.name)}</b><small>${pdvPriceKind(x)}</small></td>
@@ -78,7 +83,7 @@ function updateLegacySelectedPanel(){
     if(code)code.value=''; if(qty){qty.value=0;qty.disabled=true} if(unit)unit.value='0,00'; if(line)line.value='0,00';
     if(name)name.textContent='SEM PRODUTO'; if(sub)sub.textContent='Aguardando leitura'; return
   }
-  let pr=bestPrice(i.product,i.qty);
+  let pr=pdvUnitPrice(i);
   if(code)code.value=i.code||'';
   if(qty){qty.disabled=false;qty.value=i.qty}
   if(unit)unit.value=pr.toFixed(2);
@@ -117,8 +122,8 @@ async function pdv(){
         <div class="legacy-fields">
           <label>Código<input id="pdvSelectedCode" readonly value="${selected?esc(selected.code||''):''}"></label>
           <label>Quantidade<input id="pdvQty" type="number" step=".001" min=".001" value="${selected?selected.qty:0}" ${selected?'':'disabled'} onchange="setSelectedPdvQty(this.value)"></label>
-          <label>Preço Unitário<input id="pdvSelectedUnit" readonly value="${selected?bestPrice(selected.product,selected.qty).toFixed(2):'0,00'}"></label>
-          <label>Preço Total<input id="pdvSelectedTotal" readonly value="${selected?(selected.qty*bestPrice(selected.product,selected.qty)).toFixed(2):'0,00'}"></label>
+          <label>Preço Unitário<input id="pdvSelectedUnit" type="number" min="0" step=".01" value="${selected?pdvUnitPrice(selected).toFixed(2):'0.00'}" ${selected?'':'disabled'} onchange="requestPdvPriceChange(this.value)" title="Qualquer funcionário pode aumentar. Redução exige senha de Administrador/Gerente."></label>
+          <label>Preço Total<input id="pdvSelectedTotal" readonly value="${selected?(selected.qty*pdvUnitPrice(selected)).toFixed(2):'0,00'}"></label>
         </div>
       </div>
       <div class="legacy-items">
@@ -128,13 +133,14 @@ async function pdv(){
     </div>
     <div class="legacy-client-row">
       <label>Cliente <select id="pdvCustomer"><option value="">Consumidor Final</option>${customerOptions}</select></label>
-      <label>Desconto <input id="pdvDiscount" type="number" min="0" step=".01" value="0" ${canDiscount()?'':'disabled'} oninput="updatePdvTotals()"></label>
+      <label>Desconto (%) <input id="pdvDiscount" type="number" min="0" max="100" step=".01" value="0" onchange="requestPdvDiscount(this.value)" title="Desconto exige autorização de Administrador/Gerente."></label>
+      <div class="pdv-discount-info"><small>Desconto</small><b id="pdvDiscountAmount">${money(0)}</b></div>
       <button onclick="openMaterialCalculator()">▦ Calculadora</button>
       <button onclick="showSuspendedSales()">▣ Vendas suspensas</button>
     </div>
     <div class="legacy-actions">
       <button onclick="removePdvSelected()">F4<br><b>Cancelar item</b></button>
-      <button ${canDiscount()?'onclick="pdvDiscount.focus();pdvDiscount.select()"':'disabled'}>F5<br><b>Desconto</b></button>
+      <button onclick="pdvDiscount.focus();pdvDiscount.select()">F5<br><b>Desconto %</b></button>
       <button onclick="pdvCustomer.focus()">F3<br><b>Cliente</b></button>
       <button onclick="document.querySelector('#payBox select')?.focus()">F8<br><b>Pagamento</b></button>
       <button onclick="suspendCurrentSale()">F9<br><b>Suspender</b></button>
@@ -146,7 +152,7 @@ async function pdv(){
       <button class="legacy-finish" onclick="finishSale()">F12 • FINALIZAR VENDA</button>
     </div>
     <div class="legacy-cash open"><span>▣</span><b>CAIXA ABERTO</b><strong>${esc(cash.operator||me.name)}</strong></div>
-    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span>Rede local ativa</span><span>ConstruGest 2.9.0</span></div>
+    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span>Rede local ativa</span><span>ConstruGest 2.9.1</span></div>
   </div>`
 }
 function installPdvShortcuts(){
@@ -157,7 +163,7 @@ function installPdvShortcuts(){
     if(e.key==='F2'){e.preventDefault();pdvSearch.focus();pdvSearch.select()}
     else if(e.key==='F3'){e.preventDefault();pdvCustomer.focus()}
     else if(e.key==='F4'){e.preventDefault();removePdvSelected()}
-    else if(e.key==='F5'&&canDiscount()){e.preventDefault();pdvDiscount.focus();pdvDiscount.select()}
+    else if(e.key==='F5'){e.preventDefault();pdvDiscount.focus();pdvDiscount.select()}
     else if(e.key==='F8'){e.preventDefault();document.querySelector('#payBox select')?.focus()}
     else if(e.key==='F9'){e.preventDefault();suspendCurrentSale()}
     else if(e.key==='F12'){e.preventDefault();finishSale()}
@@ -175,23 +181,97 @@ async function pdvLookup(q){let box=document.getElementById('pdvResults');if(!bo
 function pdvEnter(){let q=pdvSearch.value.trim(),r=window._pdvResults||[];let exact=r.find(p=>String(p.code)===q||String(p.ean||'')===q);if(exact)addCart(exact.id);else if(r.length===1)addCart(r[0].id)}
 function bestPrice(p,q){let today=new Date().toISOString().slice(0,10),promo=+p.promo>0&&(!p.promo_start||today>=String(p.promo_start).slice(0,10))&&(!p.promo_end||today<=String(p.promo_end).slice(0,10));return promo?+p.promo:(q>=+p.wholesale_min&&+p.wholesale>0?+p.wholesale:+p.retail)}
 async function addCart(id){let p=(window._pdvResults||[]).find(x=>x.id===id);if(!p)p=(await api('/products')).find(x=>x.id===id);if(!p)return toast('Produto não encontrado.');let i=cart.find(x=>x.product_id===id);if(i){i.qty++;pdvSelected=cart.indexOf(i)}else{cart.push({product_id:id,name:p.name,code:p.code,qty:1,stock:+p.stock,product:p});pdvSelected=cart.length-1}pdvSearch.value='';pdvResults.style.display='none';window._pdvResults=[];updateLegacyPdvUI();pdvSearch.focus()}
-function cartSubtotal(){return cart.reduce((a,i)=>a+bestPrice(i.product,i.qty)*i.qty,0)}
-function currentPdvTotal(){return Math.max(0,cartSubtotal()-(+document.getElementById('pdvDiscount')?.value||0))}
-function updatePdvTotals(){let total=currentPdvTotal();if(document.getElementById('pdvTotal'))pdvTotal.textContent=money(total);if(payments.length===1&&!payments[0].touched)payments[0].amount=total;if(document.getElementById('payBox'))payBox.innerHTML=paymentHtml();if(document.getElementById('cashChangeBox'))cashChangeBox.innerHTML=cashChangeHtml()}
+function cartSubtotal(){return cart.reduce((a,i)=>a+pdvUnitPrice(i)*i.qty,0)}
+function currentPdvTotal(){return Math.max(0,cartSubtotal()-pdvDiscountAmount())}
+function updatePdvTotals(opts={}){
+  let total=currentPdvTotal(),disc=pdvDiscountAmount();
+  let totalEl=document.getElementById('pdvTotal'),discEl=document.getElementById('pdvDiscountAmount');
+  if(totalEl)totalEl.textContent=money(total);
+  if(discEl)discEl.textContent=money(disc);
+  if(payments.length===1&&!payments[0].touched)payments[0].amount=total;
+  if(opts.renderPayments!==false&&document.getElementById('payBox'))payBox.innerHTML=paymentHtml();
+  if(document.getElementById('cashChangeBox'))cashChangeBox.innerHTML=cashChangeHtml()
+}
+async function ensureManagerApproval(actionText){
+  if(pdvApprovalToken)return true;
+  pdvPendingAction=actionText;
+  return new Promise(resolve=>{
+    window._pdvApprovalResolve=resolve;
+    modal(`<h3>Autorização necessária</h3>
+      <p class=muted>${esc(actionText)}</p>
+      <div class=formgrid>
+        <div><label>E-mail do Administrador/Gerente</label><input id=approvalEmail type=email autocomplete=username placeholder="gerente@empresa.com"></div>
+        <div><label>Senha</label><input id=approvalPassword type=password autocomplete=current-password placeholder="Senha"></div>
+      </div>
+      <div id=approvalError class="alert red" style="display:none;margin-top:12px"></div>
+      <div style="margin-top:18px"><button class=primary onclick=confirmManagerApproval()>AUTORIZAR</button> <button onclick=cancelManagerApproval()>Cancelar</button></div>`);
+    setTimeout(()=>document.getElementById('approvalEmail')?.focus(),30)
+  })
+}
+async function confirmManagerApproval(){
+  let email=document.getElementById('approvalEmail')?.value||'',password=document.getElementById('approvalPassword')?.value||'',err=document.getElementById('approvalError');
+  try{
+    let r=await api('/manager-approval',{method:'POST',body:JSON.stringify({email,password})});
+    pdvApprovalToken=r.approval_token;pdvApprovalBy=r.approved_by||'Gerência';
+    let resolve=window._pdvApprovalResolve;window._pdvApprovalResolve=null;closeModal();if(resolve)resolve(true);toast('Autorizado por '+pdvApprovalBy)
+  }catch(e){if(err){err.style.display='block';err.textContent=e.message}else alert(e.message)}
+}
+function cancelManagerApproval(){let resolve=window._pdvApprovalResolve;window._pdvApprovalResolve=null;closeModal();if(resolve)resolve(false)}
+async function requestPdvPriceChange(v){
+  let i=pdvSelectedItem();if(!i)return;
+  let requested=+v,base=bestPrice(i.product,i.qty),input=document.getElementById('pdvSelectedUnit');
+  if(!Number.isFinite(requested)||requested<=0){if(input)input.value=pdvUnitPrice(i).toFixed(2);return toast('Preço inválido.')}
+  if(requested<base-0.001){
+    let ok=await ensureManagerApproval(`Reduzir ${i.name} de ${money(base)} para ${money(requested)}.`);
+    if(!ok){if(input)input.value=pdvUnitPrice(i).toFixed(2);return}
+  }
+  i.manual_price=requested;i.price_authorized=requested<base-0.001;
+  updateLegacyPdvUI()
+}
+async function requestPdvDiscount(v){
+  let input=document.getElementById('pdvDiscount'),pct=Math.max(0,Math.min(100,+v||0));
+  if(pct<=0){if(input)input.value='0';updatePdvTotals();return}
+  let ok=await ensureManagerApproval(`Aplicar desconto de ${pct.toFixed(2).replace('.',',')}% nesta venda.`);
+  if(!ok){if(input)input.value='0';updatePdvTotals();return}
+  if(input)input.value=String(pct);updatePdvTotals()
+}
 function refreshCart(){updateLegacyPdvUI()}
 function paymentHtml(){let total=currentPdvTotal();return payments.map((p,n)=>`<div class="payrow pdv-payrow"><select aria-label="Forma de pagamento" onchange="payments[${n}].method=this.value;if(this.value!=='Dinheiro')cashReceived=0;updatePdvTotals()">${['Dinheiro','PIX','Cartão Débito','Cartão Crédito','Crediário'].map(x=>`<option ${p.method===x?'selected':''}>${x}</option>`).join('')}</select><input aria-label="Valor" type=number step=.01 value="${(+p.amount||0).toFixed(2)}" oninput="payments[${n}].amount=+this.value;payments[${n}].touched=true;updateCashChange()"><button class=danger-btn onclick="payments.splice(${n},1);if(!payments.length)payments=[{method:'Dinheiro',amount:total,touched:false}];updatePdvTotals()">×</button></div>`).join('')}
 function addPayment(){let total=currentPdvTotal(),used=payments.reduce((a,p)=>a+(+p.amount||0),0),remaining=Math.max(0,total-used);payments.push({method:'PIX',amount:remaining,touched:false});payments.forEach(p=>p.touched=true);updatePdvTotals();setTimeout(()=>document.querySelectorAll('#payBox select')[payments.length-1]?.focus(),20)}
 function cashChangeHtml(){let cash=payments.reduce((a,p)=>a+(p.method==='Dinheiro'?(+p.amount||0):0),0);if(!cash)return '';let received=Math.max(cash,+cashReceived||0),change=Math.max(0,received-cash);return `<div class=pdv-change><label>Dinheiro recebido</label><input id=cashReceivedInput type=number step=.01 min=0 value="${cashReceived?cashReceived.toFixed(2):''}" placeholder="Ex.: 100,00" oninput="cashReceived=+this.value||0;updateCashChange()"><div><span>Troco</span><strong id=cashChangeValue>${money(change)}</strong></div></div>`}
 function updateCashChange(){let cash=payments.reduce((a,p)=>a+(p.method==='Dinheiro'?(+p.amount||0):0),0),received=Math.max(cash,+cashReceived||0),change=Math.max(0,received-cash),el=document.getElementById('cashChangeValue');if(el)el.textContent=money(change)}
 function suspendCurrentSale(){if(!cart.length)return toast('Carrinho vazio.');modal(`<h3>Suspender venda</h3><p class=muted>A venda ficará disponível para ser retomada em qualquer computador da rede.</p><label>Identificação</label><input id=suspendLabel maxlength=80 value="Venda ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}" placeholder="Ex.: Cliente João - Obra Aldeota"><div style="margin-top:18px"><button class=primary onclick=confirmSuspendSale()>SUSPENDER VENDA</button> <button onclick=closeModal()>Cancelar</button></div>`);setTimeout(()=>suspendLabel?.select(),30)}
-async function confirmSuspendSale(){try{await api('/suspended-sales',{method:'POST',body:JSON.stringify({label:document.getElementById('suspendLabel')?.value||'Venda suspensa',customer_id:+document.getElementById('pdvCustomer')?.value||null,payload:{items:cart.map(i=>({product_id:i.product_id,qty:i.qty})),discount:+document.getElementById('pdvDiscount')?.value||0,payments}})});cart=[];payments=[{method:'Dinheiro',amount:0,touched:false}];cashReceived=0;pdvSelected=-1;closeModal();toast('Venda suspensa com sucesso.');render('pdv')}catch(e){alert(e.message)}}
+async function confirmSuspendSale(){try{await api('/suspended-sales',{method:'POST',body:JSON.stringify({label:document.getElementById('suspendLabel')?.value||'Venda suspensa',customer_id:+document.getElementById('pdvCustomer')?.value||null,payload:{items:cart.map(i=>({product_id:i.product_id,qty:i.qty,manual_price:Number.isFinite(+i.manual_price)?+i.manual_price:null})),discount:+document.getElementById('pdvDiscount')?.value||0,payments}})});cart=[];payments=[{method:'Dinheiro',amount:0,touched:false}];cashReceived=0;pdvSelected=-1;pdvApprovalToken=null;pdvApprovalBy='';closeModal();toast('Venda suspensa com sucesso.');render('pdv')}catch(e){alert(e.message)}}
 async function showSuspendedSales(){try{let rows=await api('/suspended-sales');modal(`<div class=toolbar><h3>Vendas suspensas</h3><button onclick=closeModal()>Fechar</button></div>${rows.length?rows.map(x=>`<div class=suspended-row><div><b>${esc(x.label||'Venda suspensa')}</b><small>${esc(x.customer||'Consumidor Final')} • ${esc(x.operator||'')} • ${new Date(x.updated_at).toLocaleString('pt-BR')}</small></div><button class=primary onclick="resumeSuspendedSale(${x.id})">Retomar</button><button class=danger-btn onclick="deleteSuspendedSale(${x.id})">Excluir</button></div>`).join(''):'<div class=empty>Nenhuma venda suspensa.</div>'}`)}catch(e){alert(e.message)}}
-async function resumeSuspendedSale(id){try{let rows=await api('/suspended-sales'),x=rows.find(r=>r.id===id);if(!x)return;let all=await api('/products'),items=x.payload?.items||[];cart=items.map(i=>{let p=all.find(z=>z.id===+i.product_id);return p?{product_id:p.id,name:p.name,code:p.code,qty:+i.qty,stock:+p.stock,product:p}:null}).filter(Boolean);payments=(x.payload?.payments||[{method:'Dinheiro',amount:0}]).map(p=>({...p,touched:true}));cashReceived=0;pdvSelected=cart.length-1;closeModal();await render('pdv');if(document.getElementById('pdvCustomer')&&x.customer_id)pdvCustomer.value=x.customer_id;if(document.getElementById('pdvDiscount'))pdvDiscount.value=+x.payload?.discount||0;updateLegacyPdvUI();await api('/suspended-sales/'+id,{method:'DELETE'});toast('Venda retomada.')}catch(e){alert(e.message)}}
+async function resumeSuspendedSale(id){try{let rows=await api('/suspended-sales'),x=rows.find(r=>r.id===id);if(!x)return;let all=await api('/products'),items=x.payload?.items||[];cart=items.map(i=>{let p=all.find(z=>z.id===+i.product_id);return p?{product_id:p.id,name:p.name,code:p.code,qty:+i.qty,stock:+p.stock,product:p,manual_price:Number.isFinite(+i.manual_price)?+i.manual_price:null}:null}).filter(Boolean);payments=(x.payload?.payments||[{method:'Dinheiro',amount:0}]).map(p=>({...p,touched:true}));cashReceived=0;pdvSelected=cart.length-1;pdvApprovalToken=null;pdvApprovalBy='';closeModal();await render('pdv');if(document.getElementById('pdvCustomer')&&x.customer_id)pdvCustomer.value=x.customer_id;if(document.getElementById('pdvDiscount'))pdvDiscount.value=+x.payload?.discount||0;updateLegacyPdvUI();await api('/suspended-sales/'+id,{method:'DELETE'});toast('Venda retomada.')}catch(e){alert(e.message)}}
 function deleteSuspendedSale(id){closeModal();modal(`<h3>Excluir venda suspensa?</h3><p>Esta ação não altera estoque nem caixa, apenas remove a venda da lista de suspensas.</p><button class=danger-btn onclick="confirmDeleteSuspendedSale(${id})">EXCLUIR</button> <button onclick=closeModal()>Cancelar</button>`)}
 async function confirmDeleteSuspendedSale(id){try{await api('/suspended-sales/'+id,{method:'DELETE'});closeModal();showSuspendedSales()}catch(e){alert(e.message)}}
 function openMaterialCalculator(){modal(`<h3>Calculadora de pisos e cerâmicas</h3><p class=muted>Calcule rapidamente a quantidade necessária para uma obra.</p><div class=formgrid><div><label>Largura do ambiente (m)</label><input id=calcW type=number step=.01 min=0 oninput=calcMaterial()></div><div><label>Comprimento (m)</label><input id=calcL type=number step=.01 min=0 oninput=calcMaterial()></div><div><label>Rendimento por caixa (m²)</label><input id=calcBox type=number step=.01 min=.01 oninput=calcMaterial()></div><div><label>Margem de perda</label><select id=calcLoss onchange=calcMaterial()><option value=5>5%</option><option value=10 selected>10%</option><option value=15>15%</option></select></div></div><div id=calcResult class=calc-result><span>Informe as medidas acima.</span></div><div class=row><button class=primary onclick=closeModal()>Concluir</button></div>`)}
 function calcMaterial(){let w=+document.getElementById('calcW')?.value||0,l=+document.getElementById('calcL')?.value||0,b=+document.getElementById('calcBox')?.value||0,loss=+document.getElementById('calcLoss')?.value||0,area=w*l,need=area*(1+loss/100),boxes=b>0?Math.ceil(need/b):0;let el=document.getElementById('calcResult');if(el)el.innerHTML=area>0?`<div><small>Área</small><strong>${num(area)} m²</strong></div><div><small>Com ${loss}% de perda</small><strong>${num(need)} m²</strong></div><div class=highlight><small>Quantidade a vender</small><strong>${boxes||'—'} caixa(s)</strong></div>`:'<span>Informe as medidas acima.</span>'}
-async function finishSale(){if(!cart.length)return alert('Carrinho vazio.');let discount=+document.getElementById('pdvDiscount')?.value||0,total=Math.max(0,cartSubtotal()-discount),sum=payments.reduce((a,p)=>a+(+p.amount||0),0);if(Math.abs(total-sum)>.01)return alert(`Pagamentos somam ${money(sum)}, mas o total é ${money(total)}.`);let cashDue=payments.reduce((a,p)=>a+(p.method==='Dinheiro'?(+p.amount||0):0),0);if(cashDue&&cashReceived>0&&cashReceived+0.001<cashDue)return alert('Dinheiro recebido é menor que o valor em dinheiro da venda.');try{let s=await api('/sales-v42',{method:'POST',body:JSON.stringify({customer_id:+document.getElementById('pdvCustomer')?.value||null,discount,items:cart.map(i=>({product_id:i.product_id,qty:i.qty})),payments})});cart=[];pdvSelected=-1;payments=[{method:'Dinheiro',amount:0,touched:false}];cashReceived=0;toast('Venda #'+s.id+' finalizada.');render('pdv');if(window._cgAutoPrint!==false)setTimeout(()=>printReceipt(s.id),250)}catch(e){alert(e.message)}}
+async function finishSale(){
+  if(pdvFinishing)return;
+  if(!cart.length)return alert('Carrinho vazio.');
+  let discount_percent=pdvDiscountPct(),total=currentPdvTotal(),sum=payments.reduce((a,p)=>a+(+p.amount||0),0);
+  let needsApproval=discount_percent>0||cart.some(i=>pdvUnitPrice(i)<bestPrice(i.product,i.qty)-0.001);
+  if(needsApproval&&!pdvApprovalToken){let ok=await ensureManagerApproval('Esta venda possui desconto ou preço abaixo da tabela.');if(!ok)return}
+  if(Math.abs(total-sum)>.01)return alert(`Pagamentos somam ${money(sum)}, mas o total é ${money(total)}.`);
+  let cashDue=payments.reduce((a,p)=>a+(p.method==='Dinheiro'?(+p.amount||0):0),0);
+  if(cashDue&&cashReceived>0&&cashReceived+0.001<cashDue)return alert('Dinheiro recebido é menor que o valor em dinheiro da venda.');
+  pdvFinishing=true;let btn=document.querySelector('.legacy-finish');if(btn){btn.disabled=true;btn.textContent='FINALIZANDO...'}
+  try{
+    let s=await api('/sales-v42',{method:'POST',body:JSON.stringify({
+      customer_id:+document.getElementById('pdvCustomer')?.value||null,
+      discount_percent,
+      approval_token:pdvApprovalToken,
+      items:cart.map(i=>({product_id:i.product_id,qty:i.qty,unit_price:pdvUnitPrice(i)})),
+      payments
+    })});
+    cart=[];pdvSelected=-1;payments=[{method:'Dinheiro',amount:0,touched:false}];cashReceived=0;
+    pdvApprovalToken=null;pdvApprovalBy='';toast('Venda #'+s.id+' finalizada.');render('pdv');
+    if(window._cgAutoPrint!==false)setTimeout(()=>printReceipt(s.id),250)
+  }catch(e){alert(e.message)}
+  finally{pdvFinishing=false}
+}
 
 async function vendas(){let s=await api('/sales');return `<div class=panel><div class=toolbar><h3>Vendas</h3><input placeholder="Filtrar..." oninput="filterRows(this.value,'salesTable')" style="max-width:250px"></div><div class=scroll><table id=salesTable><tr><th>#</th><th>Data</th><th>Cliente</th><th>Vendedor</th><th>Pagamento</th><th>Total</th><th>Status</th><th></th></tr>${s.map(x=>`<tr><td>${x.id}</td><td>${new Date(x.created_at).toLocaleString('pt-BR')}</td><td>${esc(x.customer||'Consumidor Final')}</td><td>${esc(x.seller)}</td><td>${esc(x.payment_method)}</td><td>${money(x.total)}</td><td>${esc(x.status)}</td><td><button class="secondary mini" onclick=printReceipt(${x.id})>Comprovante</button> ${x.status==='FINALIZADA'&&['Administrador','Gerente'].includes(me.role)?`<button class="danger-btn mini" onclick=cancelSale(${x.id})>Estornar</button>`:''}</td></tr>`).join('')}</table></div></div>`}
 async function reposicao(){let r=await api('/stock/replenishment'),total=r.reduce((s,x)=>s+(+x.suggested*+x.cost),0);return `<div class=panel><div class=toolbar><div><span class=eyebrow>ESTOQUE</span><h3 style="margin:5px 0">Sugestão de compra</h3><small class=muted>Reposição calculada pelo estoque mínimo e máximo cadastrado.</small></div><span class=pill>Investimento estimado: ${money(total)}</span></div>${r.length?`<div class=scroll><table><tr><th>Código</th><th>Produto</th><th>Estoque</th><th>Mínimo</th><th>Máximo</th><th>Sugestão</th><th>Custo estimado</th><th>Status</th></tr>${r.map(x=>`<tr><td>${esc(x.code||'')}</td><td><b>${esc(x.name)}</b><br><small class=muted>${esc(x.brand||'')}</small></td><td class=${+x.stock<=0?'danger':''}>${num(x.stock)} ${esc(x.unit||'')}</td><td>${num(x.min_stock)}</td><td>${num(x.max_stock)}</td><td><b>${num(x.suggested)} ${esc(x.unit||'')}</b></td><td>${money(+x.suggested*+x.cost)}</td><td><span class="pill ${+x.stock<=0?'danger':'amber'}">${esc(x.status)}</span></td></tr>`).join('')}</table></div>`:'<div class="alert green">✓ Nenhum produto precisa de reposição neste momento.</div>'}</div>`}

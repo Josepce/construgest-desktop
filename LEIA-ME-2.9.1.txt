@@ -1,0 +1,16 @@
+ConstruGest 2.9.1 — Controle de Preços e Descontos
+
+Regras implementadas:
+- Qualquer funcionário do PDV pode aumentar o preço unitário de um item.
+- Preço abaixo da tabela exige e-mail + senha de Administrador ou Gerente.
+- Desconto agora é percentual (%) e exige e-mail + senha de Administrador ou Gerente.
+- A autorização é validada também no servidor e expira em 10 minutos.
+- Preço manual vale apenas para a venda atual; não altera o cadastro do produto.
+- Venda grava o preço efetivamente praticado no item.
+- Auditoria registra a autorização gerencial.
+- Edição de preço/totais foi otimizada para reduzir reconstruções desnecessárias da tela.
+- Finalização possui trava contra duplo envio.
+- Desconto percentual mostra também o valor em reais.
+- Vendas suspensas preservam preço manual, mas exigem nova autorização ao serem retomadas.
+
+Banco de dados: sem alteração de schema nesta versão.
