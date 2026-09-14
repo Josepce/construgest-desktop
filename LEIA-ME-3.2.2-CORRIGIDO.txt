@@ -1,0 +1,14 @@
+CONSTRUGEST 3.2.2 — PACOTE CORRIGIDO
+
+Substitua no GitHub:
+1. package.json
+2. public/index.html
+
+Adicione/substitua:
+3. public/pdv-322.css
+
+O index.html agora carrega pdv-321.css + pdv-322.css.
+O package.json está na versão 3.2.2.
+
+NÃO COMPILE ainda.
+Depois do upload, avise ao ChatGPT para conferir o GitHub primeiro.
