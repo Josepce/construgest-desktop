@@ -1,0 +1,24 @@
+ConstruGest 2.9.0 — PDV Caixa Rápido Estabilizado
+
+Revisão estrutural do PDV 2.8, preservando o visual aprovado e religando o fluxo completo.
+
+Corrigido/revisado:
+- busca por nome, código e EAN
+- inclusão do produto no carrinho
+- grade de itens atualizada imediatamente
+- painel esquerdo mostra o item selecionado
+- clique na grade seleciona e atualiza o painel esquerdo
+- alteração de quantidade recalcula preço unitário, total do item e total da venda
+- atacado/promoção recalculados pela quantidade
+- exclusão de item pelo botão, F4 ou Delete
+- atalhos F2/F3/F4/F5/F8/F9/F12
+- cliente e desconto
+- dinheiro e troco
+- PIX, débito, crédito, crediário e pagamento misto
+- suspender e retomar venda
+- calculadora
+- finalização usa o endpoint de venda já existente
+- impressão automática preservada
+- rede local preservada
+
+Banco de dados não foi recriado nem alterado nesta versão.

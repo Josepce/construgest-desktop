@@ -101,3 +101,11 @@ main{min-width:0}header{min-height:82px;background:#ffffffdd;backdrop-filter:blu
 .dark-ui .legacy-searchbar .pdv-results .result .price{
   color:#93c5fd !important;
 }
+
+/* ConstruGest 2.9.0 — integração completa do PDV Caixa Rápido */
+.legacy-items tbody tr.pdv-cart-row{cursor:pointer}
+.legacy-items tbody tr.pdv-cart-row.selected td{background:#dbeafe!important;color:#102a56}
+.legacy-items tbody tr.pdv-cart-row.selected td:first-child{box-shadow:inset 4px 0 0 #174ea6}
+.legacy-fields input:not([readonly]):not(:disabled){background:#fff;border-color:#8aa8d8}
+.legacy-fields input:not([readonly]):not(:disabled):focus{outline:3px solid rgba(23,78,166,.15);border-color:#174ea6}
+.dark-ui .legacy-items tbody tr.pdv-cart-row.selected td{background:#253858!important;color:#fff}
