@@ -1,0 +1,15 @@
+CONSTRUGEST 3.2.1 — ORGANIZAÇÃO SUPERIOR DO PDV
+
+Base: ConstruGest 3.2.0 PDV PRO.
+
+Alteração visual:
+- atalhos F2 a F12 lado a lado no topo da faixa azul;
+- busca de produto logo abaixo;
+- melhor contraste e aproveitamento do espaço;
+- responsivo: em telas menores os atalhos quebram em 2 linhas;
+- mantém as funções e atalhos já existentes do PDV 3.2.0;
+- Modo Balcão preservado.
+
+IMPORTANTE:
+Este é um pacote incremental. Extraia e copie estes arquivos por cima da versão 3.2.0 no repositório,
+preservando todos os demais arquivos do sistema.

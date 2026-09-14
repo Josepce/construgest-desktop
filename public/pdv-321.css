@@ -1,0 +1,84 @@
+
+/* ConstruGest 3.2.1 — organização superior do PDV */
+.legacy-searchbar{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:10px!important;
+  padding:12px!important;
+  background:linear-gradient(180deg,#174ea6 0%,#0d4598 100%)!important;
+  border-radius:10px!important;
+}
+.legacy-searchbar .legacy-shortcuts-top{
+  order:-2!important;
+  display:grid!important;
+  grid-template-columns:repeat(10,minmax(88px,1fr))!important;
+  gap:6px!important;
+  width:100%!important;
+  margin:0!important;
+  padding:0!important;
+}
+.legacy-searchbar .legacy-shortcuts-top span{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-height:48px!important;
+  padding:7px 5px!important;
+  border:1px solid rgba(147,197,253,.5)!important;
+  border-radius:7px!important;
+  background:rgba(255,255,255,.08)!important;
+  color:#fff!important;
+  font-size:11px!important;
+  font-weight:900!important;
+  text-align:center!important;
+  white-space:nowrap!important;
+  text-shadow:0 1px 1px rgba(0,0,0,.18)!important;
+}
+.legacy-searchbar .legacy-shortcuts-top span:hover{
+  background:rgba(255,255,255,.16)!important;
+}
+.legacy-searchbar>label{
+  order:-1!important;
+  margin:2px 0 0!important;
+  color:#fff!important;
+  font-size:13px!important;
+  font-weight:800!important;
+}
+.legacy-searchbar>#pdvSearch{
+  height:58px!important;
+  margin:0!important;
+  padding:0 18px!important;
+  border:2px solid #dbeafe!important;
+  border-radius:8px!important;
+  background:#fff!important;
+  color:#172033!important;
+  font-size:22px!important;
+  font-weight:800!important;
+  box-shadow:0 5px 14px rgba(0,0,0,.12)!important;
+}
+.legacy-searchbar>#pdvSearch::placeholder{color:#667085!important}
+.legacy-searchbar>#pdvSearch:focus{
+  border-color:#93c5fd!important;
+  box-shadow:0 0 0 4px rgba(147,197,253,.25),0 5px 14px rgba(0,0,0,.12)!important;
+}
+.legacy-searchbar .pdv-results{
+  top:auto!important;
+  margin-top:0!important;
+}
+.legacy-top{
+  align-items:center!important;
+}
+.pdv-counter-toggle{
+  min-width:120px!important;
+  font-weight:900!important;
+}
+@media(max-width:1350px){
+  .legacy-searchbar .legacy-shortcuts-top{
+    grid-template-columns:repeat(5,1fr)!important;
+  }
+}
+@media(max-width:800px){
+  .legacy-searchbar .legacy-shortcuts-top{
+    grid-template-columns:repeat(2,1fr)!important;
+  }
+  .legacy-searchbar>#pdvSearch{font-size:18px!important}
+}
