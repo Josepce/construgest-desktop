@@ -1,0 +1,8 @@
+ConstruGest 3.2.5 — Diagnóstico de Inicialização
+
+- Mantém a correção do Orçamento da 3.2.4.
+- Não fecha mais silenciosamente quando o servidor/banco falha ao iniciar.
+- Exibe uma tela de diagnóstico com o erro técnico.
+- Grava construgest-startup.log na pasta de dados do aplicativo.
+- Nenhum dado do banco é apagado ou recriado por esta atualização.
+- Objetivo: identificar com precisão a falha observada na 3.2.4.
