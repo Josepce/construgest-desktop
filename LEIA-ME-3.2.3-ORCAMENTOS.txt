@@ -1,0 +1,10 @@
+ConstruGest 3.2.3 — Orçamentos Profissionais
+
+Base: 3.2.2 aprovada em teste funcional.
+Novidades:
+- Novo Orçamento e Orçamentos Salvos em telas separadas.
+- Visual azul integrado ao ConstruGest.
+- Cliente, validade, vendedor, produtos, quantidade, preço e desconto por item.
+- Totais destacados, observações, salvar e salvar/imprimir.
+- Tela de salvos com busca, filtro, impressão e conversão em venda.
+- PDV 3.2.2 preservado.
