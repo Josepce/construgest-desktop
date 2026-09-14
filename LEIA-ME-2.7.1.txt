@@ -1,0 +1,12 @@
+CONSTRUGEST 2.7.1 - PDV AVANCADO
+
+Novidades:
+- Suspender e retomar vendas, compartilhadas entre computadores da rede local.
+- F9 suspende a venda atual.
+- Troco automatico para pagamentos em dinheiro.
+- Pagamento misto com preenchimento e controle mais simples.
+- Calculadora de pisos/ceramicas por m2 com perdas de 5%, 10% e 15%.
+- Vendas suspensas incluidas no backup completo.
+
+Base: ConstruGest 2.7.0 aprovada em teste funcional.
+Antes de uso definitivo, validar esta versao em venda de teste.

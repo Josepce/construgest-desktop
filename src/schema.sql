@@ -54,3 +54,8 @@ INSERT INTO app_settings(id,data) VALUES(1,'{}'::jsonb) ON CONFLICT (id) DO NOTH
 
 -- ConstruGest 2.5 - Controle, Permissoes e Seguranca
 ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+
+-- ConstruGest 2.7.1 - PDV Avancado
+CREATE TABLE IF NOT EXISTS suspended_sales(id SERIAL PRIMARY KEY,user_id INT REFERENCES users(id),customer_id INT REFERENCES customers(id),label TEXT,payload JSONB NOT NULL DEFAULT '{}'::jsonb,created_at TIMESTAMPTZ DEFAULT now(),updated_at TIMESTAMPTZ DEFAULT now());
+CREATE INDEX IF NOT EXISTS idx_suspended_sales_created ON suspended_sales(created_at);
