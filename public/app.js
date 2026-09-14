@@ -16,7 +16,7 @@ const ROLE_VIEWS={
 function canView(v){if(me?.role==='Administrador')return true;let base=ROLE_VIEWS[me?.role]||[];if(v==='financeiro'&&hasPerm('financial'))return true;if(['reposicao','estoque','inventario','compras','fornecedores'].includes(v)&&hasPerm('stock'))return true;return base.includes(v)}
 
 const subtitles={dashboard:'Resumo da operação e indicadores do negócio',pdv:'Venda rápida, preços automáticos e múltiplos pagamentos',vendas:'Consulte, imprima e estorne vendas',orcamentos:'Crie propostas e converta em vendas',produtos:'Preços, margens e cadastro do catálogo',estoque:'Kardex e histórico de entradas e saídas',inventario:'Contagem e acerto físico de estoque',compras:'Pedidos, recebimento e custo médio',fornecedores:'Cadastro e histórico de fornecedores',clientes:'Cadastro e histórico de clientes',financeiro:'Contas a pagar, receber e resultado',relatorios:'Indicadores gerenciais, backup e restauração',usuarios:'Acessos e níveis de permissão',auditoria:'Rastreabilidade das operações',configuracoes:'Empresa, vendas, estoque, segurança e preferências do sistema'};
-// ConstruGest 2.7.0 - PDV Profissional + atalhos + rede local
+// ConstruGest 2.8.0 - PDV Caixa Rápido + atalhos + rede local
 function getViewHandler(v){
   switch(v){
     case 'dashboard': return dashboard; case 'pdv': return pdv; case 'vendas': return vendas;
@@ -48,24 +48,66 @@ async function printQuote(id){let [qlist,items,cfg]=await Promise.all([api('/quo
 function convertQuote(id){modal(`<h3>Converter orçamento #${id}</h3><label>Forma de pagamento</label><select id=quotePayment><option>Dinheiro</option><option selected>PIX</option><option>Cartão Débito</option><option>Cartão Crédito</option><option>Crediário</option></select><div style="margin-top:18px"><button class=primary onclick="confirmConvertQuote(${id})">CONVERTER EM VENDA</button> <button onclick=closeModal()>Cancelar</button></div>`)}async function confirmConvertQuote(id){try{let s=await api('/quotes/'+id+'/convert',{method:'POST',body:JSON.stringify({payment_method:quotePayment.value})});closeModal();toast('Convertido em venda #'+s.id);render('orcamentos')}catch(e){toast(e.message)}}
 let pdvSelected=-1;
 async function pdv(){
-  let [c,cu]=await Promise.all([api('/cash/current'),api('/customers')]);
-  if(!c)return `<div class="alert red">O caixa está fechado. Abra o caixa antes de iniciar vendas.</div><button class=primary onclick=openCash()>Abrir caixa</button>`;
-  setTimeout(()=>{document.getElementById('pdvSearch')?.focus();installPdvShortcuts()},60);
-  return `<div class="pdv-pro-head"><div><span class=eyebrow>FRENTE DE CAIXA</span><h2>Nova venda</h2><small>Operador: <b>${esc(me.name)}</b> • Caixa: <b>${esc(c.operator)}</b></small></div><div class=pdv-head-actions><button class=secondary onclick=showSuspendedSales()>⏸ Vendas suspensas</button><button class=secondary onclick=openMaterialCalculator()>▦ Calculadora m²</button><div class=pdv-status><span class="status-dot"></span> CAIXA ABERTO</div></div></div>
-  <div class=pdv-pro>
-    <section class="pdv-work panel">
-      <div class=pdv-search-wrap><span class=pdv-search-icon>⌕</span><input id=pdvSearch autocomplete=off placeholder="Buscar por nome, código ou ler código de barras..." oninput="pdvLookup(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();pdvEnter()}"><kbd>F2</kbd></div>
-      <div id=pdvResults class="product-results pdv-results" style="display:none"></div>
-      <div class=pdv-cart-title><div><b>ITENS DA VENDA</b><small id=pdvItemCount>${cart.reduce((a,i)=>a+(+i.qty||0),0)} item(ns)</small></div><span>Qtd. × Unitário = Total</span></div>
-      <div id=cartBox class=pdv-cart>${cartHtml()}</div>
-    </section>
-    <aside class=pdv-summary>
-      <div class="panel pdv-customer"><div class=pdv-section-title><span>CLIENTE</span><kbd>F3</kbd></div><select id=pdvCustomer><option value="">Consumidor Final</option>${cu.map(x=>`<option value=${x.id}>${esc(x.name)}</option>`).join('')}</select></div>
-      <div class="panel pdv-payment"><div class=pdv-section-title><span>PAGAMENTO</span><kbd>F8</kbd></div><div id=payBox>${paymentHtml()}</div><button class="secondary full" onclick=addPayment()>+ Pagamento misto</button><div id=cashChangeBox>${cashChangeHtml()}</div></div>
-      <div class="pdv-actions-row"><button onclick=suspendCurrentSale()>⏸ Suspender venda</button><button onclick=openMaterialCalculator()>▦ Calcular piso</button></div><div class="pdv-total-card"><div class=pdv-line><span>Subtotal</span><b id=pdvSubtotal>${money(cartSubtotal())}</b></div><div class=pdv-line><span>Desconto <kbd>F5</kbd></span><div class=pdv-discount><span>R$</span><input id=pdvDiscount type=number step=.01 min=0 value=0 ${canDiscount()?'':'disabled'} oninput=updatePdvTotals()></div></div><div class=pdv-grand><small>TOTAL A PAGAR</small><strong id=pdvTotal>${money(cartSubtotal())}</strong></div><button class="pdv-finish" onclick=finishSale()><span>FINALIZAR VENDA</span><kbd>F12</kbd></button></div>
-    </aside>
-  </div>
-  <div class=pdv-shortcuts><span><kbd>F2</kbd> Buscar</span><span><kbd>F3</kbd> Cliente</span><span><kbd>F4</kbd> Quantidade</span><span><kbd>F5</kbd> Desconto</span><span><kbd>F8</kbd> Pagamento</span><span><kbd>F9</kbd> Suspender</span><span><kbd>Del</kbd> Remover</span><span><kbd>+ / -</kbd> Quantidade</span><span class=strong><kbd>F12</kbd> Finalizar</span></div>`
+  let [p,c,cs]=await Promise.all([api('/products'),api('/customers'),api('/cash/summary')]);
+  window._pdvProducts=p;window._pdvCustomers=c;
+  if(!cart.length)payments=[{method:'Dinheiro',amount:0,touched:false}];
+  let total=currentPdvTotal(),selected=cart.length-1,last=cart[selected],customerOptions=c.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
+  setTimeout(()=>{let s=document.getElementById('pdvSearch');if(s)s.focus()},40);
+  return `<div class="legacy-pdv">
+    <div class="legacy-top">
+      <div><b>ConstruGest</b><small>PDV • PONTO DE VENDA</small></div>
+      <div class="legacy-operator">Operador: <b>${esc(me.name)}</b><br><small>${new Date().toLocaleString('pt-BR')}</small></div>
+    </div>
+
+    <div class="legacy-searchbar">
+      <label>Digite o código, EAN ou nome do produto</label>
+      <input id="pdvSearch" autocomplete="off" placeholder="Código do produto..." oninput="pdvSearchLive(this.value)" onkeydown="pdvSearchKey(event)">
+      <div class="legacy-shortcuts-top"><span>F2 Produtos</span><span>F3 Cliente</span><span>F8 Pagamento</span><span>F9 Suspender</span><span>F12 Finalizar</span></div>
+      <div id="pdvResults" class="pdv-results"></div>
+    </div>
+
+    <div class="legacy-main">
+      <div class="legacy-left">
+        <div class="legacy-product-image"><div class="cart-symbol">🛒</div><b>${last?esc(last.name):'SEM PRODUTO'}</b><small>${last?esc(last.code||''):'Aguardando leitura'}</small></div>
+        <div class="legacy-fields">
+          <label>Código<input readonly value="${last?esc(last.code||''):''}"></label>
+          <label>Quantidade<input id="pdvQty" type="number" step=".001" min=".001" value="${last?last.qty:0}" ${last?'':'disabled'} onchange="setCartQty(${selected},this.value)"></label>
+          <label>Preço Unitário<input readonly value="${last?(+last.unit_price).toFixed(2):'0,00'}"></label>
+          <label>Preço Total<input readonly value="${last?(+last.qty*+last.unit_price).toFixed(2):'0,00'}"></label>
+        </div>
+      </div>
+
+      <div class="legacy-items">
+        <table><thead><tr><th>Item</th><th>Código</th><th>Descrição do Produto</th><th>Qtd.</th><th>Vlr. Unit.</th><th>Vlr. Total</th><th></th></tr></thead>
+        <tbody>${cart.length?cart.map((x,i)=>`<tr onclick="selectCartRow(${i})"><td>${i+1}</td><td>${esc(x.code||'')}</td><td><b>${esc(x.name)}</b><small>${esc(x.price_label||'VAREJO')}</small></td><td>${num(x.qty)}</td><td>${money(x.unit_price)}</td><td><b>${money(+x.qty*+x.unit_price)}</b></td><td><button class="legacy-del" onclick="event.stopPropagation();removeCart(${i})">×</button></td></tr>`).join(''):'<tr><td colspan="7" class="legacy-empty">Aguardando produtos...</td></tr>'}</tbody></table>
+      </div>
+    </div>
+
+    <div class="legacy-client-row">
+      <label>Cliente <select id="pdvCustomer"><option value="">Consumidor Final</option>${customerOptions}</select></label>
+      <label>Desconto <input id="pdvDiscount" type="number" min="0" step=".01" value="0" ${canDiscount()?'':'disabled'} oninput="updatePdvTotals()"></label>
+      <button onclick="openMaterialCalculator()">▦ Calculadora</button>
+      <button onclick="showSuspendedSales()">▣ Vendas suspensas</button>
+    </div>
+
+    <div class="legacy-actions">
+      <button onclick="removeSelectedCart()">F4<br><b>Cancelar item</b></button>
+      <button ${canDiscount()?'onclick="pdvDiscount.focus()"':'disabled'}>F5<br><b>Desconto</b></button>
+      <button onclick="document.getElementById('pdvCustomer').focus()">F6<br><b>Cliente</b></button>
+      <button onclick="focusPayment()">F8<br><b>Pagamento</b></button>
+      <button onclick="suspendCurrentSale()">F9<br><b>Suspender</b></button>
+      <div class="legacy-subtotal"><span>Subtotal</span><strong id="pdvTotal">${money(total)}</strong></div>
+    </div>
+
+    <div class="legacy-paybox">
+      <div><b>FORMA DE PAGAMENTO</b><div id="paymentRows">${paymentRowsHtml()}</div><button class="secondary mini" onclick="addPayment()">+ Pagamento misto</button></div>
+      <div id="cashChangeBox">${cashChangeHtml()}</div>
+      <button class="legacy-finish" onclick="finishSale()">F12 • FINALIZAR VENDA</button>
+    </div>
+
+    <div class="legacy-cash ${cs?'open':'closed'}"><span>▣</span><b>${cs?'CAIXA ABERTO':'CAIXA FECHADO'}</b><strong>${cs?money(cs.expected):'—'}</strong></div>
+    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ${cs?'ABERTO':'FECHADO'}</span><span>Rede local ativa</span><span>ConstruGest 2.8.0</span></div>
+  </div>`;
 }
 function installPdvShortcuts(){if(window._pdvKeysInstalled)return;window._pdvKeysInstalled=true;document.addEventListener('keydown',e=>{if(!document.getElementById('pdvSearch'))return;let tag=(e.target?.tagName||'').toLowerCase(),typing=['input','select','textarea'].includes(tag);if(e.key==='F2'){e.preventDefault();pdvSearch.focus();pdvSearch.select()}else if(e.key==='F3'){e.preventDefault();pdvCustomer.focus()}else if(e.key==='F4'){e.preventDefault();focusPdvQty()}else if(e.key==='F5'&&canDiscount()){e.preventDefault();pdvDiscount.focus();pdvDiscount.select()}else if(e.key==='F8'){e.preventDefault();document.querySelector('#payBox select')?.focus()}else if(e.key==='F9'){e.preventDefault();suspendCurrentSale()}else if(e.key==='F12'){e.preventDefault();finishSale()}else if(e.key==='Delete'&&!typing){e.preventDefault();removePdvSelected()}else if((e.key==='+'||e.key==='-')&&!typing){e.preventDefault();changePdvQty(e.key==='+'?1:-1)}})}
 function focusPdvQty(){if(!cart.length)return toast('Carrinho vazio.');if(pdvSelected<0||pdvSelected>=cart.length)pdvSelected=cart.length-1;document.querySelector(`[data-pdv-qty="${pdvSelected}"]`)?.focus();document.querySelector(`[data-pdv-qty="${pdvSelected}"]`)?.select()}

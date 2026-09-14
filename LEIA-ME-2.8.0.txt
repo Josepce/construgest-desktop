@@ -1,0 +1,14 @@
+ConstruGest 2.8.0 — PDV Caixa Rápido
+
+Nova tela de PDV inspirada em terminais clássicos de loja:
+- campo grande para código/EAN/nome
+- tabela central de itens
+- quantidade, preço unitário e total em destaque
+- subtotal grande
+- indicador CAIXA ABERTO/FECHADO
+- atalhos F2/F3/F4/F5/F8/F9/F12
+- cliente, desconto, pagamento misto, vendas suspensas e calculadora preservados
+- troco automático corrigido preservado
+- rede local e banco existentes preservados
+
+A mudança é de interface do PDV; não cria um banco novo.
