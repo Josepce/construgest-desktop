@@ -14,3 +14,7 @@ Novidades:
 - Auditoria de abertura, movimentos e fechamento.
 
 A 3.0.0 deve ser validada em teste funcional antes do uso definitivo.
+
+
+CORREÇÃO DE IMPRESSÃO:
+Após cada venda finalizada, o ConstruGest pergunta se deseja imprimir o comprovante. O histórico continua permitindo reimpressão.

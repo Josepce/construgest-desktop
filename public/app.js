@@ -280,10 +280,15 @@ async function finishSale(){
     })});
     cart=[];pdvSelected=-1;payments=[{method:'Dinheiro',amount:0,touched:false}];cashReceived=0;
     pdvApprovalToken=null;pdvApprovalBy='';toast('Venda #'+s.id+' finalizada.');render('pdv');
-    if(window._cgAutoPrint!==false)setTimeout(()=>printReceipt(s.id),250)
+    setTimeout(()=>askPrintReceipt(s.id),250)
   }catch(e){alert(e.message)}
   finally{pdvFinishing=false}
 }
+
+function askPrintReceipt(id){
+  modal(`<h3>Venda finalizada com sucesso</h3><div class="alert green">Venda #${id} registrada.</div><p>Deseja imprimir o comprovante desta venda?</p><div style="margin-top:18px"><button class=primary onclick="confirmPrintReceipt(${id})">🖨 IMPRIMIR</button> <button onclick=closeModal()>NÃO IMPRIMIR</button></div>`);
+}
+function confirmPrintReceipt(id){closeModal();printReceipt(id)}
 
 async function vendas(){let s=await api('/sales');return `<div class=panel><div class=toolbar><h3>Vendas</h3><input placeholder="Filtrar..." oninput="filterRows(this.value,'salesTable')" style="max-width:250px"></div><div class=scroll><table id=salesTable><tr><th>#</th><th>Data</th><th>Cliente</th><th>Vendedor</th><th>Pagamento</th><th>Total</th><th>Status</th><th></th></tr>${s.map(x=>`<tr><td>${x.id}</td><td>${new Date(x.created_at).toLocaleString('pt-BR')}</td><td>${esc(x.customer||'Consumidor Final')}</td><td>${esc(x.seller)}</td><td>${esc(x.payment_method)}</td><td>${money(x.total)}</td><td>${esc(x.status)}</td><td><button class="secondary mini" onclick=printReceipt(${x.id})>Comprovante</button> ${x.status==='FINALIZADA'&&['Administrador','Gerente'].includes(me.role)?`<button class="danger-btn mini" onclick=cancelSale(${x.id})>Estornar</button>`:''}</td></tr>`).join('')}</table></div></div>`}
 async function reposicao(){let r=await api('/stock/replenishment'),total=r.reduce((s,x)=>s+(+x.suggested*+x.cost),0);return `<div class=panel><div class=toolbar><div><span class=eyebrow>ESTOQUE</span><h3 style="margin:5px 0">Sugestão de compra</h3><small class=muted>Reposição calculada pelo estoque mínimo e máximo cadastrado.</small></div><span class=pill>Investimento estimado: ${money(total)}</span></div>${r.length?`<div class=scroll><table><tr><th>Código</th><th>Produto</th><th>Estoque</th><th>Mínimo</th><th>Máximo</th><th>Sugestão</th><th>Custo estimado</th><th>Status</th></tr>${r.map(x=>`<tr><td>${esc(x.code||'')}</td><td><b>${esc(x.name)}</b><br><small class=muted>${esc(x.brand||'')}</small></td><td class=${+x.stock<=0?'danger':''}>${num(x.stock)} ${esc(x.unit||'')}</td><td>${num(x.min_stock)}</td><td>${num(x.max_stock)}</td><td><b>${num(x.suggested)} ${esc(x.unit||'')}</b></td><td>${money(+x.suggested*+x.cost)}</td><td><span class="pill ${+x.stock<=0?'danger':'amber'}">${esc(x.status)}</span></td></tr>`).join('')}</table></div>`:'<div class="alert green">✓ Nenhum produto precisa de reposição neste momento.</div>'}</div>`}
