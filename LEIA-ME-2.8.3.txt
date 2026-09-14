@@ -1,0 +1,12 @@
+ConstruGest 2.8.3 — Hotfix visual da busca do PDV
+
+Melhora a legibilidade dos resultados da pesquisa:
+- fundo branco e texto azul-marinho/escuro
+- nome do produto em negrito
+- informações secundárias em cinza escuro
+- preço destacado
+- item selecionado/hover com fundo azul claro
+- lista limitada em altura com rolagem
+- contraste próprio para tema escuro
+
+Não altera banco de dados, vendas, estoque, caixa ou regras de preço.

@@ -32,3 +32,72 @@ main{min-width:0}header{min-height:82px;background:#ffffffdd;backdrop-filter:blu
 .dark-ui .legacy-pdv{background:#111827;color:#e5e7eb}.dark-ui .legacy-left,.dark-ui .legacy-items,.dark-ui .legacy-client-row,.dark-ui .legacy-paybox{background:#172033;border-color:#344054}.dark-ui .legacy-fields input,.dark-ui .legacy-items th{background:#202a3d;color:#fff}
 @media(max-width:1050px){.legacy-main{grid-template-columns:300px 1fr}.legacy-left{grid-template-columns:110px 1fr}.legacy-actions{grid-template-columns:repeat(5,90px) 1fr}.legacy-paybox{grid-template-columns:1fr 1fr}.legacy-finish{grid-column:1/-1}}
 @media(max-width:800px){.legacy-main{grid-template-columns:1fr}.legacy-left{display:none}.legacy-client-row{grid-template-columns:1fr 1fr}.legacy-actions{grid-template-columns:repeat(3,1fr)}.legacy-subtotal{grid-column:1/-1}.legacy-paybox{grid-template-columns:1fr}.legacy-shortcuts-top{display:none}.legacy-searchbar{grid-template-columns:1fr}.legacy-searchbar .pdv-results{right:12px}.legacy-status{flex-wrap:wrap;gap:6px}}
+
+
+/* ConstruGest 2.8.3 — Legibilidade da busca do PDV */
+.legacy-searchbar .pdv-results{
+  background:#ffffff;
+  border:1px solid #c8d2e1;
+  border-radius:0 0 8px 8px;
+  box-shadow:0 14px 30px rgba(15,23,42,.18);
+  max-height:300px;
+  overflow-y:auto;
+  color:#17233d;
+}
+.legacy-searchbar .pdv-results .result{
+  background:#ffffff;
+  color:#17233d !important;
+  border-bottom:1px solid #e3e8ef;
+  padding:12px 14px;
+  min-height:58px;
+}
+.legacy-searchbar .pdv-results .result:hover,
+.legacy-searchbar .pdv-results .result.active{
+  background:#eaf2ff !important;
+  color:#102a56 !important;
+}
+.legacy-searchbar .pdv-results .result b,
+.legacy-searchbar .pdv-results .result strong{
+  color:#102a56 !important;
+  font-size:14px;
+  font-weight:900;
+}
+.legacy-searchbar .pdv-results .result small,
+.legacy-searchbar .pdv-results .result span{
+  color:#526175 !important;
+}
+.legacy-searchbar .pdv-results .result .price{
+  color:#0b4ca3 !important;
+  font-weight:900;
+  font-size:14px;
+}
+.legacy-searchbar .pdv-results button,
+.legacy-searchbar .pdv-results [onclick]{
+  color:#17233d;
+}
+.dark-ui .legacy-searchbar .pdv-results{
+  background:#172033;
+  border-color:#3b4659;
+  color:#f3f4f6;
+}
+.dark-ui .legacy-searchbar .pdv-results .result{
+  background:#172033;
+  color:#f3f4f6 !important;
+  border-bottom-color:#344054;
+}
+.dark-ui .legacy-searchbar .pdv-results .result:hover,
+.dark-ui .legacy-searchbar .pdv-results .result.active{
+  background:#253858 !important;
+  color:#ffffff !important;
+}
+.dark-ui .legacy-searchbar .pdv-results .result b,
+.dark-ui .legacy-searchbar .pdv-results .result strong{
+  color:#ffffff !important;
+}
+.dark-ui .legacy-searchbar .pdv-results .result small,
+.dark-ui .legacy-searchbar .pdv-results .result span{
+  color:#cbd5e1 !important;
+}
+.dark-ui .legacy-searchbar .pdv-results .result .price{
+  color:#93c5fd !important;
+}
