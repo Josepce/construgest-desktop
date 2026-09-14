@@ -1,0 +1,16 @@
+CONSTRUGEST 3.2.2 — PDV LAYOUT APROVADO
+
+Base funcional: último PDV PROMAX aprovado nos testes.
+
+ALTERAÇÕES:
+- CAIXA ABERTO passa para o topo do PDV.
+- Atalhos duplicados da barra inferior foram removidos visualmente.
+- Barra inferior fica dedicada ao TOTAL.
+- Atalhos F2–F12 continuam na barra superior.
+- Busca, carrinho, pagamentos, modo balcão e regras funcionais permanecem.
+- Layout responsivo preservado.
+
+COMO APLICAR:
+Copie os arquivos deste pacote sobre a versão atual do repositório.
+Mantenha todos os demais arquivos existentes (app.js, server.js, electron-main.cjs etc.).
+Depois execute o workflow Gerar ConstruGest Windows EXE.

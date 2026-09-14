@@ -1,0 +1,27 @@
+
+/* ConstruGest 3.2.2 — PDV Layout Aprovado */
+.legacy-pdv{display:flex!important;flex-direction:column!important;gap:8px!important}
+.legacy-cash{order:-100!important;margin:0!important;min-height:62px!important;border-radius:9px!important;
+ display:grid!important;grid-template-columns:auto 1fr auto!important;align-items:center!important;gap:14px!important;
+ padding:10px 18px!important;background:linear-gradient(90deg,#174ea6,#123f91)!important;color:#fff!important}
+.legacy-cash span{font-size:24px!important}.legacy-cash b{font-size:22px!important;letter-spacing:-.02em!important}
+.legacy-cash strong{font-size:18px!important;text-align:right!important;color:#fff!important}
+.legacy-top{order:-99!important;margin:0!important;min-height:auto!important}
+.legacy-searchbar{order:-98!important}
+.legacy-main{order:-97!important;min-height:330px!important}
+.legacy-client-row{order:-96!important}
+.legacy-actions{order:-95!important;display:block!important;padding:10px!important;
+ background:linear-gradient(180deg,#1458b8,#0a4297)!important;border-radius:10px!important}
+.legacy-actions>button{display:none!important}
+.legacy-subtotal{display:flex!important;min-height:96px!important;margin:0!important;width:100%!important;
+ background:linear-gradient(90deg,rgba(255,255,255,.06),rgba(255,255,255,.015))!important;
+ border:1px solid rgba(147,197,253,.34)!important;border-radius:8px!important;color:#fff!important;
+ align-items:center!important;justify-content:flex-start!important;gap:22px!important;padding:10px 24px!important}
+.legacy-subtotal:before{content:'🛒';font-size:38px!important;line-height:1!important;filter:grayscale(1) brightness(0) invert(1)}
+.legacy-subtotal span{font-size:24px!important;font-weight:800!important;padding-right:22px!important;border-right:2px solid rgba(255,255,255,.72)!important}
+.legacy-subtotal strong{font-size:48px!important;line-height:1!important;font-weight:900!important;color:#fff!important}
+.legacy-paybox{order:-94!important}.legacy-status{order:-93!important}
+.legacy-searchbar .legacy-shortcuts-top{display:grid!important;grid-template-columns:repeat(10,minmax(82px,1fr))!important;gap:6px!important}
+.legacy-searchbar .legacy-shortcuts-top span{min-height:50px!important;color:#fff!important;font-weight:900!important}
+@media(max-width:1200px){.legacy-searchbar .legacy-shortcuts-top{grid-template-columns:repeat(5,1fr)!important}}
+@media(max-width:760px){.legacy-searchbar .legacy-shortcuts-top{grid-template-columns:repeat(2,1fr)!important}.legacy-cash{grid-template-columns:1fr!important}.legacy-cash strong{text-align:left!important}.legacy-subtotal strong{font-size:38px!important}}
