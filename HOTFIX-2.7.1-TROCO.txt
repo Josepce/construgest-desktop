@@ -1,0 +1,4 @@
+ConstruGest 2.7.1 - Hotfix do Troco Automático
+
+Corrige o campo 'Dinheiro recebido', que perdia o foco a cada tecla digitada.
+Agora o campo permanece editável e apenas o valor do troco é atualizado em tempo real.
