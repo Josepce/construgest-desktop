@@ -1,0 +1,24 @@
+CONSTRUGEST 3.2.2 — PACOTE COMPLETO PARA GITHUB
+
+Este pacote contém o projeto completo necessário para compilação:
+- electron-main.cjs
+- package.json
+- public/app.js
+- public/style.css
+- public/pdv-321.css
+- public/pdv-322.css
+- public/index.html
+- src/db.js
+- src/schema.sql
+- src/server.js
+- workflow do GitHub Actions
+- arquivos auxiliares do projeto
+
+Base funcional preservada: PDV PRO/PROMAX.
+Alteração visual 3.2.2:
+- CAIXA ABERTO no topo
+- atalhos concentrados no topo
+- barra inferior dedicada ao TOTAL
+
+Após carregar no GitHub, NÃO compile imediatamente.
+Peça ao ChatGPT para conferir a versão e os arquivos primeiro.
