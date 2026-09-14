@@ -1,0 +1,9 @@
+ConstruGest 3.2.4 — Ajuste do Novo Orçamento
+
+- Campo Adicionar Produto mostra somente código e nome do produto.
+- Preço não aparece mais junto ao nome no seletor.
+- Campo Preço Unit. é preenchido automaticamente com o preço de varejo do produto selecionado.
+- Ao trocar o produto, o preço unitário é atualizado automaticamente.
+- Após adicionar um item, o preço do produto selecionado volta a ser exibido automaticamente.
+- Base funcional: ConstruGest 3.2.3.
+- PDV 3.2.2 preservado.
