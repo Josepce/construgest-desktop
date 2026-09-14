@@ -59,3 +59,11 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '{
 -- ConstruGest 2.7.1 - PDV Avancado
 CREATE TABLE IF NOT EXISTS suspended_sales(id SERIAL PRIMARY KEY,user_id INT REFERENCES users(id),customer_id INT REFERENCES customers(id),label TEXT,payload JSONB NOT NULL DEFAULT '{}'::jsonb,created_at TIMESTAMPTZ DEFAULT now(),updated_at TIMESTAMPTZ DEFAULT now());
 CREATE INDEX IF NOT EXISTS idx_suspended_sales_created ON suspended_sales(created_at);
+
+
+-- ConstruGest 3.0 - Caixa e Fechamento Profissional
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS closed_by INT REFERENCES users(id);
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS difference NUMERIC(14,2);
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS close_note TEXT;
+CREATE INDEX IF NOT EXISTS idx_cash_sessions_opened ON cash_sessions(opened_at);
+CREATE INDEX IF NOT EXISTS idx_cash_movements_session ON cash_movements(session_id);

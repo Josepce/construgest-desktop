@@ -1,0 +1,16 @@
+ConstruGest 3.0.0 — Caixa e Fechamento Profissional
+
+Base: 2.9.1 aprovada no teste funcional.
+
+Novidades:
+- Tela Caixa para Administrador, Gerente e Caixa.
+- Abertura com fundo inicial.
+- Resumo por forma de pagamento.
+- Suprimento e sangria com motivo.
+- Fechamento com esperado, contado e diferença.
+- Observação e responsável pelo fechamento.
+- Histórico dos últimos 100 caixas.
+- Relatório detalhado e impressão.
+- Auditoria de abertura, movimentos e fechamento.
+
+A 3.0.0 deve ser validada em teste funcional antes do uso definitivo.
