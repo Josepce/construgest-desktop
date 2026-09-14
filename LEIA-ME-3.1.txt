@@ -1,0 +1,16 @@
+ConstruGest 3.1.0 — PDV Inteligente — Etapa 1
+
+Base: ConstruGest 3.0 aprovada no teste funcional.
+
+Melhorias desta etapa:
+- Leitura de código/EAN otimizada: código exato entra direto no carrinho.
+- Busca com debounce e proteção contra respostas antigas.
+- F6 abre diretamente a quantidade do item selecionado.
+- Estoque visível no painel do item selecionado.
+- Indicador de conexão com o servidor no rodapé do PDV.
+- Bloqueio preventivo da finalização se o monitor detectar servidor desconectado.
+- Proteção já existente contra duplo clique/F12 mantida.
+- Tela pós-venda mostra total, dinheiro recebido e troco antes da impressão.
+- Pergunta de impressão mantida.
+
+IMPORTANTE: esta versão precisa passar pelo teste funcional antes de ser adotada como nova base estável.

@@ -1,5 +1,6 @@
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(+n||0),num=n=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:3}).format(+n||0),esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 let token=localStorage.cg42token||localStorage.cg41token||'',me=null,cart=[],payments=[{method:'Dinheiro',amount:0,touched:false}],purchaseCart=[],quoteCart=[],cashReceived=0;
+let pdvLookupTimer=null,pdvLookupSeq=0,pdvNetworkTimer=null,pdvNetworkOnline=true;
 const hasPerm=k=>me?.role==='Administrador'||!!me?.permissions?.[k];
 async function api(url,opt={}){let r=await fetch('/api'+url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,...opt.headers}}),j=await r.json().catch(()=>({}));if(r.status===401){logout();throw Error(j.error||'Sessão expirada')}if(!r.ok)throw Error(j.error||'Erro na operação');return j}
 function toast(x){let t=document.getElementById('toast');t.textContent=x;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2300)}
@@ -16,7 +17,7 @@ const ROLE_VIEWS={
 function canView(v){if(me?.role==='Administrador')return true;let base=ROLE_VIEWS[me?.role]||[];if(v==='financeiro'&&hasPerm('financial'))return true;if(['reposicao','estoque','inventario','compras','fornecedores'].includes(v)&&hasPerm('stock'))return true;return base.includes(v)}
 
 const subtitles={dashboard:'Resumo da operação e indicadores do negócio',caixa:'Abertura, movimentos, conferência e fechamento profissional',pdv:'Venda rápida, preços automáticos e múltiplos pagamentos',vendas:'Consulte, imprima e estorne vendas',orcamentos:'Crie propostas e converta em vendas',produtos:'Preços, margens e cadastro do catálogo',estoque:'Kardex e histórico de entradas e saídas',inventario:'Contagem e acerto físico de estoque',compras:'Pedidos, recebimento e custo médio',fornecedores:'Cadastro e histórico de fornecedores',clientes:'Cadastro e histórico de clientes',financeiro:'Contas a pagar, receber e resultado',relatorios:'Indicadores gerenciais, backup e restauração',usuarios:'Acessos e níveis de permissão',auditoria:'Rastreabilidade das operações',configuracoes:'Empresa, vendas, estoque, segurança e preferências do sistema'};
-// ConstruGest 3.0.0 - Controle de Preços e Descontos
+// ConstruGest 3.1.0 - PDV Inteligente Etapa 1
 function getViewHandler(v){
   switch(v){
     case 'dashboard': return dashboard; case 'caixa': return caixa; case 'pdv': return pdv; case 'vendas': return vendas;
@@ -101,7 +102,7 @@ function updateLegacySelectedPanel(){
   if(unit)unit.value=pr.toFixed(2);
   if(line)line.value=(pr*i.qty).toFixed(2);
   if(name)name.textContent=i.name;
-  if(sub)sub.textContent=(i.code||'')+' • '+pdvPriceKind(i)
+  if(sub)sub.textContent=(i.code||'')+' • '+pdvPriceKind(i)+' • Estoque: '+num(i.stock)+' '+esc(i.product?.unit||'UN')
 }
 function updateLegacyPdvUI(){
   let body=document.getElementById('legacyItemsBody');
@@ -116,7 +117,7 @@ async function pdv(){
   if(!cart.length){pdvSelected=-1;payments=[{method:'Dinheiro',amount:0,touched:false}]}
   else if(pdvSelected<0||pdvSelected>=cart.length)pdvSelected=cart.length-1;
   let selected=pdvSelectedItem(),total=currentPdvTotal(),customerOptions=customers.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
-  setTimeout(()=>document.getElementById('pdvSearch')?.focus(),40);
+  setTimeout(()=>{document.getElementById('pdvSearch')?.focus();startPdvNetworkMonitor()},40);
   return `<div class="legacy-pdv">
     <div class="legacy-top">
       <div><b>ConstruGest</b><small>PDV • PONTO DE VENDA</small></div>
@@ -125,7 +126,7 @@ async function pdv(){
     <div class="legacy-searchbar">
       <label>Digite o código, EAN ou nome do produto</label>
       <input id="pdvSearch" autocomplete="off" placeholder="Código do produto..." oninput="pdvLookup(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();pdvEnter()}">
-      <div class="legacy-shortcuts-top"><span>F2 Buscar produto</span><span>F3 Cliente</span><span>F4 Remover item</span><span>F5 Desconto</span><span>F8 Pagamento</span><span>F9 Suspender</span><span>F12 Finalizar</span></div>
+      <div class="legacy-shortcuts-top"><span>F2 Buscar</span><span>F3 Cliente</span><span>F4 Remover</span><span>F5 Desconto</span><span>F6 Quantidade</span><span>F8 Pagamento</span><span>F9 Suspender</span><span>F12 Finalizar</span></div>
       <div id="pdvResults" class="pdv-results"></div>
     </div>
     <div class="legacy-main">
@@ -154,6 +155,7 @@ async function pdv(){
       <button onclick="removePdvSelected()">F4<br><b>Cancelar item</b></button>
       <button onclick="pdvDiscount.focus();pdvDiscount.select()">F5<br><b>Desconto %</b></button>
       <button onclick="pdvCustomer.focus()">F3<br><b>Cliente</b></button>
+      <button onclick="focusPdvQty()">F6<br><b>Quantidade</b></button>
       <button onclick="document.querySelector('#payBox select')?.focus()">F8<br><b>Pagamento</b></button>
       <button onclick="suspendCurrentSale()">F9<br><b>Suspender</b></button>
       <div class="legacy-subtotal"><span>Total</span><strong id="pdvTotal">${money(total)}</strong></div>
@@ -164,7 +166,7 @@ async function pdv(){
       <button class="legacy-finish" onclick="finishSale()">F12 • FINALIZAR VENDA</button>
     </div>
     <div class="legacy-cash open"><span>▣</span><b>CAIXA ABERTO</b><strong>${esc(cash.operator||me.name)}</strong></div>
-    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span>Rede local ativa</span><span>ConstruGest 3.0.0</span></div>
+    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span id="pdvNetworkStatus">● Servidor conectado</span><span>ConstruGest 3.1.0</span></div>
   </div>`
 }
 function installPdvShortcuts(){
@@ -176,6 +178,7 @@ function installPdvShortcuts(){
     else if(e.key==='F3'){e.preventDefault();pdvCustomer.focus()}
     else if(e.key==='F4'){e.preventDefault();removePdvSelected()}
     else if(e.key==='F5'){e.preventDefault();pdvDiscount.focus();pdvDiscount.select()}
+    else if(e.key==='F6'){e.preventDefault();focusPdvQty()}
     else if(e.key==='F8'){e.preventDefault();document.querySelector('#payBox select')?.focus()}
     else if(e.key==='F9'){e.preventDefault();suspendCurrentSale()}
     else if(e.key==='F12'){e.preventDefault();finishSale()}
@@ -189,7 +192,14 @@ function setSelectedPdvQty(v){let i=pdvSelectedItem();if(!i)return;i.qty=Math.ma
 function removeCartItem(n){if(n<0||n>=cart.length)return;cart.splice(n,1);pdvSelected=cart.length?Math.min(n,cart.length-1):-1;updateLegacyPdvUI();pdvSearch?.focus()}
 function removePdvSelected(){if(!cart.length)return toast('Carrinho vazio.');if(pdvSelected<0||pdvSelected>=cart.length)pdvSelected=cart.length-1;removeCartItem(pdvSelected)}
 function changePdvQty(d){let i=pdvSelectedItem();if(!i)return toast('Carrinho vazio.');i.qty=Math.max(.001,(+i.qty||0)+d);updateLegacyPdvUI()}
-async function pdvLookup(q){let box=document.getElementById('pdvResults');if(!box)return;if(q.trim().length<1){box.style.display='none';window._pdvResults=[];return}let r=await api('/products/search?q='+encodeURIComponent(q));window._pdvResults=r;box.style.display='block';box.innerHTML=r.map(p=>`<div class=result onclick="addCart(${p.id})"><span><b>${esc(p.code)} — ${esc(p.name)}</b><br><small>Estoque: ${num(p.stock)} ${esc(p.unit)}${p.brand?' • '+esc(p.brand):''}</small></span><strong class=price>${money(bestPrice(p,1))}</strong></div>`).join('')||'<div class=empty>Nenhum resultado.</div>'}
+function pdvLookup(q){
+  clearTimeout(pdvLookupTimer);let term=String(q||'').trim(),box=document.getElementById('pdvResults');if(!box)return;
+  if(!term){box.style.display='none';window._pdvResults=[];return}
+  let seq=++pdvLookupSeq;
+  pdvLookupTimer=setTimeout(async()=>{try{let r=await api('/products/search?q='+encodeURIComponent(term));if(seq!==pdvLookupSeq||document.getElementById('pdvSearch')?.value.trim()!==term)return;window._pdvResults=r;let exact=r.find(p=>String(p.code||'')===term||String(p.ean||'')===term);if(exact&&r.length){addCart(exact.id);return}box.style.display='block';box.innerHTML=r.map(p=>`<div class=result onclick="addCart(${p.id})"><span><b>${esc(p.code)} — ${esc(p.name)}</b><br><small>Estoque: ${num(p.stock)} ${esc(p.unit)}${p.brand?' • '+esc(p.brand):''}</small></span><strong class=price>${money(bestPrice(p,1))}</strong></div>`).join('')||'<div class=empty>Nenhum resultado.</div>'}catch(e){if(seq===pdvLookupSeq)toast('Falha ao consultar produto. Verifique a conexão.')}},term.length>=5?70:180)
+}
+async function checkPdvNetwork(){if(!document.getElementById('pdvNetworkStatus'))return;let el=document.getElementById('pdvNetworkStatus');try{await api('/me');pdvNetworkOnline=true;el.textContent='● Servidor conectado';el.style.fontWeight='700';el.style.opacity='1'}catch(e){pdvNetworkOnline=false;if(el){el.textContent='● SERVIDOR DESCONECTADO';el.style.fontWeight='900';el.style.opacity='1'}}}
+function startPdvNetworkMonitor(){clearInterval(pdvNetworkTimer);checkPdvNetwork();pdvNetworkTimer=setInterval(()=>{if(document.getElementById('pdvNetworkStatus'))checkPdvNetwork();else clearInterval(pdvNetworkTimer)},10000)}
 function pdvEnter(){let q=pdvSearch.value.trim(),r=window._pdvResults||[];let exact=r.find(p=>String(p.code)===q||String(p.ean||'')===q);if(exact)addCart(exact.id);else if(r.length===1)addCart(r[0].id)}
 function bestPrice(p,q){let today=new Date().toISOString().slice(0,10),promo=+p.promo>0&&(!p.promo_start||today>=String(p.promo_start).slice(0,10))&&(!p.promo_end||today<=String(p.promo_end).slice(0,10));return promo?+p.promo:(q>=+p.wholesale_min&&+p.wholesale>0?+p.wholesale:+p.retail)}
 async function addCart(id){let p=(window._pdvResults||[]).find(x=>x.id===id);if(!p)p=(await api('/products')).find(x=>x.id===id);if(!p)return toast('Produto não encontrado.');let i=cart.find(x=>x.product_id===id);if(i){i.qty++;pdvSelected=cart.indexOf(i)}else{cart.push({product_id:id,name:p.name,code:p.code,qty:1,stock:+p.stock,product:p});pdvSelected=cart.length-1}pdvSearch.value='';pdvResults.style.display='none';window._pdvResults=[];updateLegacyPdvUI();pdvSearch.focus()}
@@ -262,6 +272,7 @@ function openMaterialCalculator(){modal(`<h3>Calculadora de pisos e cerâmicas</
 function calcMaterial(){let w=+document.getElementById('calcW')?.value||0,l=+document.getElementById('calcL')?.value||0,b=+document.getElementById('calcBox')?.value||0,loss=+document.getElementById('calcLoss')?.value||0,area=w*l,need=area*(1+loss/100),boxes=b>0?Math.ceil(need/b):0;let el=document.getElementById('calcResult');if(el)el.innerHTML=area>0?`<div><small>Área</small><strong>${num(area)} m²</strong></div><div><small>Com ${loss}% de perda</small><strong>${num(need)} m²</strong></div><div class=highlight><small>Quantidade a vender</small><strong>${boxes||'—'} caixa(s)</strong></div>`:'<span>Informe as medidas acima.</span>'}
 async function finishSale(){
   if(pdvFinishing)return;
+  if(!pdvNetworkOnline)return alert('Servidor desconectado. Aguarde a conexão voltar antes de finalizar a venda.');
   if(!cart.length)return alert('Carrinho vazio.');
   let discount_percent=pdvDiscountPct(),total=currentPdvTotal(),sum=payments.reduce((a,p)=>a+(+p.amount||0),0);
   let needsApproval=discount_percent>0||cart.some(i=>pdvUnitPrice(i)<bestPrice(i.product,i.qty)-0.001);
@@ -280,13 +291,13 @@ async function finishSale(){
     })});
     cart=[];pdvSelected=-1;payments=[{method:'Dinheiro',amount:0,touched:false}];cashReceived=0;
     pdvApprovalToken=null;pdvApprovalBy='';toast('Venda #'+s.id+' finalizada.');render('pdv');
-    setTimeout(()=>askPrintReceipt(s.id),250)
+    let received=cashReceived||cashDue,change=Math.max(0,received-cashDue);setTimeout(()=>askPrintReceipt(s.id,total,received,change),250)
   }catch(e){alert(e.message)}
   finally{pdvFinishing=false}
 }
 
-function askPrintReceipt(id){
-  modal(`<h3>Venda finalizada com sucesso</h3><div class="alert green">Venda #${id} registrada.</div><p>Deseja imprimir o comprovante desta venda?</p><div style="margin-top:18px"><button class=primary onclick="confirmPrintReceipt(${id})">🖨 IMPRIMIR</button> <button onclick=closeModal()>NÃO IMPRIMIR</button></div>`);
+function askPrintReceipt(id,total,received,change){
+  modal(`<h3>VENDA #${id} CONCLUÍDA</h3><div class="alert green"><b>Total: ${money(total)}</b>${received>0?`<br>Recebido em dinheiro: ${money(received)}<br><b>Troco: ${money(change)}</b>`:''}</div><p>Deseja imprimir o comprovante desta venda?</p><div style="margin-top:18px"><button class=primary onclick="confirmPrintReceipt(${id})">🖨 IMPRIMIR</button> <button onclick=closeModal()>NOVA VENDA</button></div>`);
 }
 function confirmPrintReceipt(id){closeModal();printReceipt(id)}
 
