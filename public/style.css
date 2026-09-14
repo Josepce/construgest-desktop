@@ -170,3 +170,10 @@ main{min-width:0}header{min-height:82px;background:#ffffffdd;backdrop-filter:blu
 .dark-ui .legacy-actions>button{background:rgba(255,255,255,.07);border-color:rgba(147,197,253,.4);color:#fff}
 @media(max-width:1050px){.legacy-actions{grid-template-columns:repeat(3,1fr)}.legacy-subtotal{grid-column:1/-1}}
 @media(max-width:800px){.legacy-actions{grid-template-columns:repeat(2,1fr)}.legacy-subtotal{grid-column:1/-1}.legacy-subtotal strong{font-size:38px}}
+
+/* ConstruGest 3.2.0 — PDV PRO */
+.pdv-counter-toggle{margin-top:6px;padding:5px 9px!important;border-radius:7px!important;font-size:10px!important;background:#174ea6!important;color:#fff!important;border-color:#4f83cc!important}
+.pdv-pay-modal h3{font-size:30px;margin:6px 0 18px}.pdv-pay-quick{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.pdv-pay-quick button{min-height:92px;font-size:25px;background:#f8fbff;border:2px solid #c9d9f1;color:#174ea6}.pdv-pay-quick button b{display:block;font-size:12px;margin-top:8px;color:#102a56}.pdv-pay-quick button:hover{background:#eaf3ff;border-color:#174ea6}.pdv-pay-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}.pdv-pay-summary span{padding:14px;border:1px solid #d9e2ef;border-radius:10px;background:#f8fafc}.pdv-pay-summary b{display:block;font-size:20px;margin-top:4px}
+.pdv-counter-mode #shell{grid-template-columns:1fr}.pdv-counter-mode aside,.pdv-counter-mode header{display:none}.pdv-counter-mode #app{max-width:none;padding:8px}.pdv-counter-mode .legacy-pdv{min-height:calc(100vh - 16px)}
+.dark-ui .pdv-pay-quick button{background:#172033;color:#93c5fd;border-color:#334155}.dark-ui .pdv-pay-quick button b{color:#fff}.dark-ui .pdv-pay-summary span{background:#172033;border-color:#334155}
+@media(max-width:900px){.pdv-pay-quick{grid-template-columns:repeat(2,1fr)}.pdv-pay-summary{grid-template-columns:1fr}}

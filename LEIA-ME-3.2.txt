@@ -1,0 +1,28 @@
+ConstruGest 3.2.0 — PDV PRO
+
+Pacote de atualização completa do PDV, construído sobre a base funcional 3.1.1.
+
+Principais novidades:
+- Pagamento F8 redesenhado com seleção rápida: Dinheiro, PIX, Débito, Crédito e Crediário.
+- Pagamento misto preservado.
+- F7 abre vendas suspensas / recuperar venda.
+- F10 abre calculadora de materiais.
+- Busca de produtos mostra estoque, varejo, atacado, quantidade mínima e promoção.
+- Modo Balcão para operação em tela limpa, sem menu lateral/cabeçalho.
+- Barra azul da 3.1.1 preservada.
+- Leitura EAN/código exato e proteção de respostas atrasadas preservadas.
+- Indicador de servidor e bloqueio de finalização offline preservados.
+- Correção do cálculo/exibição de recebido e troco na tela de venda concluída.
+- Proteção contra dupla finalização preservada.
+- Regras de desconto/preço com autorização gerencial preservadas.
+
+Teste recomendado antes de considerar a 3.2 aprovada:
+1. Código/EAN e busca por nome.
+2. Quantidade e preço por atacado.
+3. F7, F8, F9, F10 e F12.
+4. Dinheiro com troco, PIX, cartão e pagamento misto.
+5. Suspender e recuperar venda.
+6. Modo Balcão e retorno ao modo normal.
+7. Impressão do comprovante.
+
+Não exponha a porta 3210 diretamente à internet. O modo multi-PC foi projetado para rede local confiável.
