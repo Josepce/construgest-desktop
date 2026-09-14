@@ -1,0 +1,9 @@
+ConstruGest 2.8.1 — Hotfix PDV Caixa Rápido
+
+Corrige o erro de abertura do PDV 2.8.
+A nova interface agora usa as funções reais do motor já existente:
+paymentHtml, pdvLookup, pdvEnter, selectPdvItem, removePdvSelected,
+bestPrice, refreshCart e /cash/current.
+
+Mantidos: troco corrigido, pagamento misto, vendas suspensas,
+calculadora, atalhos e rede local.

@@ -16,7 +16,7 @@ const ROLE_VIEWS={
 function canView(v){if(me?.role==='Administrador')return true;let base=ROLE_VIEWS[me?.role]||[];if(v==='financeiro'&&hasPerm('financial'))return true;if(['reposicao','estoque','inventario','compras','fornecedores'].includes(v)&&hasPerm('stock'))return true;return base.includes(v)}
 
 const subtitles={dashboard:'Resumo da operação e indicadores do negócio',pdv:'Venda rápida, preços automáticos e múltiplos pagamentos',vendas:'Consulte, imprima e estorne vendas',orcamentos:'Crie propostas e converta em vendas',produtos:'Preços, margens e cadastro do catálogo',estoque:'Kardex e histórico de entradas e saídas',inventario:'Contagem e acerto físico de estoque',compras:'Pedidos, recebimento e custo médio',fornecedores:'Cadastro e histórico de fornecedores',clientes:'Cadastro e histórico de clientes',financeiro:'Contas a pagar, receber e resultado',relatorios:'Indicadores gerenciais, backup e restauração',usuarios:'Acessos e níveis de permissão',auditoria:'Rastreabilidade das operações',configuracoes:'Empresa, vendas, estoque, segurança e preferências do sistema'};
-// ConstruGest 2.8.0 - PDV Caixa Rápido + atalhos + rede local
+// ConstruGest 2.8.1 - PDV Caixa Rápido + atalhos + rede local
 function getViewHandler(v){
   switch(v){
     case 'dashboard': return dashboard; case 'pdv': return pdv; case 'vendas': return vendas;
@@ -48,10 +48,11 @@ async function printQuote(id){let [qlist,items,cfg]=await Promise.all([api('/quo
 function convertQuote(id){modal(`<h3>Converter orçamento #${id}</h3><label>Forma de pagamento</label><select id=quotePayment><option>Dinheiro</option><option selected>PIX</option><option>Cartão Débito</option><option>Cartão Crédito</option><option>Crediário</option></select><div style="margin-top:18px"><button class=primary onclick="confirmConvertQuote(${id})">CONVERTER EM VENDA</button> <button onclick=closeModal()>Cancelar</button></div>`)}async function confirmConvertQuote(id){try{let s=await api('/quotes/'+id+'/convert',{method:'POST',body:JSON.stringify({payment_method:quotePayment.value})});closeModal();toast('Convertido em venda #'+s.id);render('orcamentos')}catch(e){toast(e.message)}}
 let pdvSelected=-1;
 async function pdv(){
-  let [p,c,cs]=await Promise.all([api('/products'),api('/customers'),api('/cash/summary')]);
-  window._pdvProducts=p;window._pdvCustomers=c;
+  let [cash,customers]=await Promise.all([api('/cash/current'),api('/customers')]);
+  if(!cash)return `<div class="alert red">O caixa está fechado. Abra o caixa antes de iniciar vendas.</div><button class=primary onclick=openCash()>Abrir caixa</button>`;
+  window._pdvCustomers=customers;installPdvShortcuts();
   if(!cart.length)payments=[{method:'Dinheiro',amount:0,touched:false}];
-  let total=currentPdvTotal(),selected=cart.length-1,last=cart[selected],customerOptions=c.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
+  let total=currentPdvTotal(),selected=cart.length-1,last=cart[selected],customerOptions=customers.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
   setTimeout(()=>{let s=document.getElementById('pdvSearch');if(s)s.focus()},40);
   return `<div class="legacy-pdv">
     <div class="legacy-top">
@@ -61,7 +62,7 @@ async function pdv(){
 
     <div class="legacy-searchbar">
       <label>Digite o código, EAN ou nome do produto</label>
-      <input id="pdvSearch" autocomplete="off" placeholder="Código do produto..." oninput="pdvSearchLive(this.value)" onkeydown="pdvSearchKey(event)">
+      <input id="pdvSearch" autocomplete="off" placeholder="Código do produto..." oninput="pdvLookup(this.value)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();pdvEnter()}">
       <div class="legacy-shortcuts-top"><span>F2 Produtos</span><span>F3 Cliente</span><span>F8 Pagamento</span><span>F9 Suspender</span><span>F12 Finalizar</span></div>
       <div id="pdvResults" class="pdv-results"></div>
     </div>
@@ -71,15 +72,15 @@ async function pdv(){
         <div class="legacy-product-image"><div class="cart-symbol">🛒</div><b>${last?esc(last.name):'SEM PRODUTO'}</b><small>${last?esc(last.code||''):'Aguardando leitura'}</small></div>
         <div class="legacy-fields">
           <label>Código<input readonly value="${last?esc(last.code||''):''}"></label>
-          <label>Quantidade<input id="pdvQty" type="number" step=".001" min=".001" value="${last?last.qty:0}" ${last?'':'disabled'} onchange="setCartQty(${selected},this.value)"></label>
-          <label>Preço Unitário<input readonly value="${last?(+last.unit_price).toFixed(2):'0,00'}"></label>
-          <label>Preço Total<input readonly value="${last?(+last.qty*+last.unit_price).toFixed(2):'0,00'}"></label>
+          <label>Quantidade<input id="pdvQty" type="number" step=".001" min=".001" value="${last?last.qty:0}" ${last?'':'disabled'} onchange="if(cart[${selected}]){cart[${selected}].qty=Math.max(.001,+this.value||1);refreshCart()}"></label>
+          <label>Preço Unitário<input readonly value="${last?bestPrice(last.product,last.qty).toFixed(2):'0,00'}"></label>
+          <label>Preço Total<input readonly value="${last?(+last.qty*bestPrice(last.product,last.qty)).toFixed(2):'0,00'}"></label>
         </div>
       </div>
 
       <div class="legacy-items">
         <table><thead><tr><th>Item</th><th>Código</th><th>Descrição do Produto</th><th>Qtd.</th><th>Vlr. Unit.</th><th>Vlr. Total</th><th></th></tr></thead>
-        <tbody>${cart.length?cart.map((x,i)=>`<tr onclick="selectCartRow(${i})"><td>${i+1}</td><td>${esc(x.code||'')}</td><td><b>${esc(x.name)}</b><small>${esc(x.price_label||'VAREJO')}</small></td><td>${num(x.qty)}</td><td>${money(x.unit_price)}</td><td><b>${money(+x.qty*+x.unit_price)}</b></td><td><button class="legacy-del" onclick="event.stopPropagation();removeCart(${i})">×</button></td></tr>`).join(''):'<tr><td colspan="7" class="legacy-empty">Aguardando produtos...</td></tr>'}</tbody></table>
+        <tbody>${cart.length?cart.map((x,i)=>`<tr onclick="selectCartRow(${i})"><td>${i+1}</td><td>${esc(x.code||'')}</td><td><b>${esc(x.name)}</b><small>${x.qty>=+x.product.wholesale_min&&+x.product.wholesale>0?'ATACADO':'VAREJO'}</small></td><td>${num(x.qty)}</td><td>${money(bestPrice(x.product,x.qty))}</td><td><b>${money(+x.qty*bestPrice(x.product,x.qty))}</b></td><td><button class="legacy-del" onclick="event.stopPropagation();removeCart(${i})">×</button></td></tr>`).join(''):'<tr><td colspan="7" class="legacy-empty">Aguardando produtos...</td></tr>'}</tbody></table>
       </div>
     </div>
 
@@ -91,22 +92,22 @@ async function pdv(){
     </div>
 
     <div class="legacy-actions">
-      <button onclick="removeSelectedCart()">F4<br><b>Cancelar item</b></button>
+      <button onclick="removePdvSelected();render(\'pdv\')">F4<br><b>Cancelar item</b></button>
       <button ${canDiscount()?'onclick="pdvDiscount.focus()"':'disabled'}>F5<br><b>Desconto</b></button>
       <button onclick="document.getElementById('pdvCustomer').focus()">F6<br><b>Cliente</b></button>
-      <button onclick="focusPayment()">F8<br><b>Pagamento</b></button>
+      <button onclick="document.querySelector(\'#payBox select\')?.focus()">F8<br><b>Pagamento</b></button>
       <button onclick="suspendCurrentSale()">F9<br><b>Suspender</b></button>
       <div class="legacy-subtotal"><span>Subtotal</span><strong id="pdvTotal">${money(total)}</strong></div>
     </div>
 
     <div class="legacy-paybox">
-      <div><b>FORMA DE PAGAMENTO</b><div id="paymentRows">${paymentRowsHtml()}</div><button class="secondary mini" onclick="addPayment()">+ Pagamento misto</button></div>
+      <div><b>FORMA DE PAGAMENTO</b><div id="payBox">${paymentHtml()}</div><button class="secondary mini" onclick="addPayment()">+ Pagamento misto</button></div>
       <div id="cashChangeBox">${cashChangeHtml()}</div>
       <button class="legacy-finish" onclick="finishSale()">F12 • FINALIZAR VENDA</button>
     </div>
 
-    <div class="legacy-cash ${cs?'open':'closed'}"><span>▣</span><b>${cs?'CAIXA ABERTO':'CAIXA FECHADO'}</b><strong>${cs?money(cs.expected):'—'}</strong></div>
-    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ${cs?'ABERTO':'FECHADO'}</span><span>Rede local ativa</span><span>ConstruGest 2.8.0</span></div>
+    <div class="legacy-cash ${cs?'open':'closed'}"><span>▣</span><b>CAIXA ABERTO</b><strong>${esc(cash.operator||me.name)}</strong></div>
+    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span>Rede local ativa</span><span>ConstruGest 2.8.1</span></div>
   </div>`;
 }
 function installPdvShortcuts(){if(window._pdvKeysInstalled)return;window._pdvKeysInstalled=true;document.addEventListener('keydown',e=>{if(!document.getElementById('pdvSearch'))return;let tag=(e.target?.tagName||'').toLowerCase(),typing=['input','select','textarea'].includes(tag);if(e.key==='F2'){e.preventDefault();pdvSearch.focus();pdvSearch.select()}else if(e.key==='F3'){e.preventDefault();pdvCustomer.focus()}else if(e.key==='F4'){e.preventDefault();focusPdvQty()}else if(e.key==='F5'&&canDiscount()){e.preventDefault();pdvDiscount.focus();pdvDiscount.select()}else if(e.key==='F8'){e.preventDefault();document.querySelector('#payBox select')?.focus()}else if(e.key==='F9'){e.preventDefault();suspendCurrentSale()}else if(e.key==='F12'){e.preventDefault();finishSale()}else if(e.key==='Delete'&&!typing){e.preventDefault();removePdvSelected()}else if((e.key==='+'||e.key==='-')&&!typing){e.preventDefault();changePdvQty(e.key==='+'?1:-1)}})}
