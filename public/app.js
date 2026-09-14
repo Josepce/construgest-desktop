@@ -16,7 +16,7 @@ const ROLE_VIEWS={
 function canView(v){if(me?.role==='Administrador')return true;let base=ROLE_VIEWS[me?.role]||[];if(v==='financeiro'&&hasPerm('financial'))return true;if(['reposicao','estoque','inventario','compras','fornecedores'].includes(v)&&hasPerm('stock'))return true;return base.includes(v)}
 
 const subtitles={dashboard:'Resumo da operação e indicadores do negócio',pdv:'Venda rápida, preços automáticos e múltiplos pagamentos',vendas:'Consulte, imprima e estorne vendas',orcamentos:'Crie propostas e converta em vendas',produtos:'Preços, margens e cadastro do catálogo',estoque:'Kardex e histórico de entradas e saídas',inventario:'Contagem e acerto físico de estoque',compras:'Pedidos, recebimento e custo médio',fornecedores:'Cadastro e histórico de fornecedores',clientes:'Cadastro e histórico de clientes',financeiro:'Contas a pagar, receber e resultado',relatorios:'Indicadores gerenciais, backup e restauração',usuarios:'Acessos e níveis de permissão',auditoria:'Rastreabilidade das operações',configuracoes:'Empresa, vendas, estoque, segurança e preferências do sistema'};
-// ConstruGest 2.8.1 - PDV Caixa Rápido + atalhos + rede local
+// ConstruGest 2.8.2 - PDV Caixa Rápido + atalhos + rede local
 function getViewHandler(v){
   switch(v){
     case 'dashboard': return dashboard; case 'pdv': return pdv; case 'vendas': return vendas;
@@ -106,8 +106,8 @@ async function pdv(){
       <button class="legacy-finish" onclick="finishSale()">F12 • FINALIZAR VENDA</button>
     </div>
 
-    <div class="legacy-cash ${cs?'open':'closed'}"><span>▣</span><b>CAIXA ABERTO</b><strong>${esc(cash.operator||me.name)}</strong></div>
-    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span>Rede local ativa</span><span>ConstruGest 2.8.1</span></div>
+    <div class="legacy-cash ${cash?'open':'closed'}"><span>▣</span><b>CAIXA ABERTO</b><strong>${esc(cash.operator||me.name)}</strong></div>
+    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span>Rede local ativa</span><span>ConstruGest 2.8.2</span></div>
   </div>`;
 }
 function installPdvShortcuts(){if(window._pdvKeysInstalled)return;window._pdvKeysInstalled=true;document.addEventListener('keydown',e=>{if(!document.getElementById('pdvSearch'))return;let tag=(e.target?.tagName||'').toLowerCase(),typing=['input','select','textarea'].includes(tag);if(e.key==='F2'){e.preventDefault();pdvSearch.focus();pdvSearch.select()}else if(e.key==='F3'){e.preventDefault();pdvCustomer.focus()}else if(e.key==='F4'){e.preventDefault();focusPdvQty()}else if(e.key==='F5'&&canDiscount()){e.preventDefault();pdvDiscount.focus();pdvDiscount.select()}else if(e.key==='F8'){e.preventDefault();document.querySelector('#payBox select')?.focus()}else if(e.key==='F9'){e.preventDefault();suspendCurrentSale()}else if(e.key==='F12'){e.preventDefault();finishSale()}else if(e.key==='Delete'&&!typing){e.preventDefault();removePdvSelected()}else if((e.key==='+'||e.key==='-')&&!typing){e.preventDefault();changePdvQty(e.key==='+'?1:-1)}})}

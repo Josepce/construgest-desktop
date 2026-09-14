@@ -1,0 +1,7 @@
+ConstruGest 2.8.2 — Hotfix PDV
+
+Corrige o erro "cs is not defined" da tela PDV.
+A variável de sessão de caixa foi padronizada para "cash" em toda a função PDV.
+Também altera a versão/cache para 2.8.2 para impedir carregamento do JavaScript anterior.
+
+Nenhuma alteração de banco de dados.
