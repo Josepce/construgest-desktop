@@ -1,0 +1,16 @@
+ConstruGest 3.2.9.4 — Identidade da Empresa
+
+Base: 3.2.9.3 aprovada nos testes funcionais.
+
+Novidades:
+- Logomarca em Configurações > Dados da empresa
+- PNG/JPG, pré-visualização, trocar e remover
+- Opção para exibir no PDV
+- Logo pequena no PDV sem alterar o layout aprovado
+- Logo no Novo Orçamento e nos orçamentos impressos
+- Logo na área de Relatórios e no relatório gerencial impresso
+- Comprovante de venda impresso também usa a identidade da empresa
+- Logo armazenada em app_settings, portanto incluída no backup lógico existente
+- Guard de regressão das 163 funções preservado
+
+Não apaga nem recria banco de dados.
