@@ -1,0 +1,31 @@
+CONSTRUGEST 3.2.7 — ORÇAMENTOS SALVOS PROFISSIONAL
+
+Base: 3.2.6 aprovada nos testes funcionais de backup/restauração.
+
+NOVIDADES
+- Visualizar orçamento completo.
+- Editar orçamento ABERTO.
+- Duplicar orçamento.
+- Imprimir orçamento.
+- Cancelar mantendo histórico.
+- Filtros por número/cliente/vendedor, situação e período.
+- Situações visuais: ABERTO, VENCIDO, CONVERTIDO e CANCELADO.
+- Converter em Venda agora CARREGA o orçamento no PDV.
+- Estoque e venda só são efetivados ao FINALIZAR VENDA no PDV.
+- Conversão e venda são vinculadas na mesma transação do PDV.
+- Percentual de desconto por item passa a ser persistido no orçamento.
+- Corrigido cálculo estrutural do desconto do orçamento para evitar reaplicação do desconto.
+
+PRESERVADO
+- Layout aprovado do PDV 3.2.2/3.2.6.
+- Caixa profissional.
+- Backup automático/manual e restauração da 3.2.6.
+- Banco PGlite e modo LAN.
+
+TESTE RECOMENDADO APÓS COMPILAR
+1. Abrir orçamento salvo e Visualizar.
+2. Editar quantidade/preço/desconto e salvar.
+3. Duplicar e cancelar a cópia.
+4. Converter o original em venda.
+5. Confirmar que abre no PDV sem baixar estoque.
+6. Finalizar no PDV e confirmar estoque, venda e status CONVERTIDO.
