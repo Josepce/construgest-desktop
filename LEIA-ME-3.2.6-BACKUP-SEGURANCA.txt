@@ -1,0 +1,18 @@
+CONSTRUGEST 3.2.6 — BACKUP E SEGURANÇA DOS DADOS
+
+Base: ConstruGest 3.2.5 aprovada nos testes funcionais com banco novo.
+
+NOVIDADES
+- Backup lógico automático a cada 24 horas.
+- Mantém as 30 cópias locais mais recentes.
+- Botão Fazer Backup Agora: grava uma cópia protegida no computador principal.
+- Botão Baixar uma cópia: gera JSON portátil para guardar fora do computador.
+- Restauração validada e restrita ao Administrador.
+- Antes de restaurar qualquer arquivo, cria automaticamente um backup PRE-RESTORE.
+- Tela mostra data do último backup, quantidade de cópias e frequência.
+- Escrita do backup local usa arquivo temporário e renomeação para reduzir risco de arquivo parcial.
+
+IMPORTANTE
+- O backup automático é lógico: protege os dados do sistema sem copiar diretamente os arquivos internos do PGlite em uso.
+- Para proteção contra perda do próprio computador, use periodicamente “Baixar uma cópia” e guarde o JSON em outro local.
+- O layout aprovado do PDV 3.2.2/3.2.5 foi preservado.
