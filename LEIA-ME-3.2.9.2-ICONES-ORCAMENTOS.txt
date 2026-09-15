@@ -1,0 +1,2 @@
+CONSTRUGEST 3.2.9.2 — ÍCONES EM ORÇAMENTOS SALVOS
+Base 3.2.9.1 aprovada. Alteração visual somente nas ações de Orçamentos Salvos. Regras, banco, PDV, Financeiro, Caixa e Backup preservados.
