@@ -1,0 +1,27 @@
+appId: br.com.construgest.desktop
+productName: ConstruGest
+asar: true
+files:
+  - electron-main.cjs
+  - package.json
+  - public/**/*
+  - src/**/*
+  - .env.example
+asarUnpack:
+  - node_modules/@electric-sql/pglite/**/*
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ConstruGest
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+  include: build/installer-update.nsh
+  artifactName: ConstruGest-Atualizacao-${version}-${arch}.${ext}
+publish: null

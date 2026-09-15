@@ -1,0 +1,40 @@
+CONSTRUGEST 3.3.0 — ATUALIZAÇÃO SEGURA
+=======================================
+
+OBJETIVO
+Permitir atualizar um ConstruGest já instalado sem desinstalar a versão anterior e sem apagar os dados.
+
+ARQUIVOS WINDOWS GERADOS
+- ConstruGest-Setup-3.3.0-x64.exe: instalação completa / PC novo.
+- ConstruGest-Atualizacao-3.3.0-x64.exe: atualização de um PC que já possui ConstruGest.
+- ConstruGest-Portable-3.3.0-x64.exe: versão portátil para diagnóstico/uso específico.
+
+COMO ATUALIZAR
+1. Feche o ConstruGest nos computadores da rede.
+2. Execute ConstruGest-Atualizacao-3.3.0-x64.exe no PC principal.
+3. Confirme a tela de Atualização Segura.
+4. O instalador fecha o processo local, cria uma cópia de segurança física do banco e atualiza os arquivos do programa.
+5. Abra o ConstruGest e confirme a versão 3.3.0 e seus dados.
+
+PROTEÇÕES
+- Mesmo appId e productName das versões anteriores, permitindo upgrade sobre a instalação existente.
+- deleteAppDataOnUninstall=false.
+- O banco continua em userData/database, fora da pasta de instalação.
+- O atualizador cria backup físico PRE-UPDATE após fechar o aplicativo e antes de substituir os binários.
+- Compatibilidade com os caminhos userData usados pelo ConstruGest.
+- O sistema de backup lógico da versão 3.2.6+ continua preservado.
+- A logomarca armazenada em app_settings continua protegida pelos backups lógicos.
+- O workflow executa o guard de 163 funções críticas antes da compilação.
+
+IMPORTANTE PARA REDE
+Atualize somente o computador principal que executa o ConstruGest/PGlite. Antes da atualização, feche o ConstruGest e interrompa o uso pelos computadores clientes. Nunca exponha a porta 3210 diretamente à internet.
+
+TESTE DE ACEITAÇÃO 3.2.9.4 -> 3.3.0
+- Cadastrar um produto/cliente de teste na 3.2.9.4.
+- Confirmar a logomarca configurada.
+- Executar o Atualizador 3.3.0 sem desinstalar.
+- Abrir o sistema.
+- Confirmar produto/cliente, logomarca, configurações e dados existentes.
+- Testar PDV, Orçamentos, Compras, Financeiro e Backup.
+
+A 3.3.0 só deve ser considerada aprovada após esse teste real de atualização no Windows.
