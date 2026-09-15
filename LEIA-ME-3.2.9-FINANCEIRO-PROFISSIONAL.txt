@@ -1,0 +1,41 @@
+CONSTRUGEST 3.2.9 — FINANCEIRO PROFISSIONAL
+
+BASE
+ConstruGest 3.2.7 aprovada nos testes funcionais.
+
+NOVIDADES
+- Painel financeiro profissional.
+- A receber, a pagar, vencidos, recebido no mês, pago no mês e resultado.
+- Contas a Pagar, Contas a Receber e Despesas.
+- Pesquisa por descrição, cliente/fornecedor, categoria e documento.
+- Filtros por situação e período de vencimento.
+- Situação VENCIDO calculada automaticamente para pendências atrasadas.
+- Novo lançamento com favorecido/cliente/fornecedor, categoria, documento e observações.
+- Edição de lançamento enquanto estiver PENDENTE.
+- Cancelamento com motivo, mantendo histórico.
+- Baixa por Dinheiro, PIX, cartões, Transferência ou Boleto.
+- Baixas em Dinheiro continuam integradas ao caixa aberto.
+- Compras recebidas continuam gerando contas a pagar.
+- Vendas em Crediário continuam gerando contas a receber.
+- Identificação automática de cliente/fornecedor nos lançamentos integrados.
+- Auditoria de criação, edição, baixa e cancelamento.
+
+PRESERVADO
+- PDV aprovado.
+- Orçamentos Salvos 3.2.7.
+- Caixa profissional.
+- Estoque, compras e vendas.
+- Backup automático/manual e restauração.
+- Banco atual do usuário.
+
+TESTE RECOMENDADO
+1. Abrir Financeiro e conferir os indicadores.
+2. Criar uma conta a pagar e uma conta a receber.
+3. Editar uma pendência.
+4. Baixar uma conta por PIX.
+5. Criar outra e cancelar informando motivo.
+6. Usar filtros de situação/período.
+7. Conferir se vendas/PDV e Orçamentos continuam normais.
+
+IMPORTANTE
+Não apagar AppData/database.

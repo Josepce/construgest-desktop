@@ -22,6 +22,10 @@ ALTER TABLE financial_entries ADD COLUMN IF NOT EXISTS installment_no INT;
 ALTER TABLE financial_entries ADD COLUMN IF NOT EXISTS installment_count INT;
 ALTER TABLE financial_entries ADD COLUMN IF NOT EXISTS payment_method TEXT;
 ALTER TABLE financial_entries ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE financial_entries ADD COLUMN IF NOT EXISTS party_name TEXT;
+ALTER TABLE financial_entries ADD COLUMN IF NOT EXISTS document_no TEXT;
+ALTER TABLE financial_entries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS cancelled_by INT REFERENCES users(id);
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS cancel_reason TEXT;

@@ -39,8 +39,66 @@ app.post('/api/sales',auth,roles('Administrador','Gerente','Vendedor','Caixa'),a
 app.get('/api/sales',auth,async(req,res)=>res.json((await pool.query('SELECT s.*,u.name seller,c.name customer FROM sales s JOIN users u ON u.id=s.user_id LEFT JOIN customers c ON c.id=s.customer_id ORDER BY s.id DESC LIMIT 200')).rows));
 app.get('/api/stock/movements',auth,async(req,res)=>res.json((await pool.query('SELECT m.*,p.name product,u.name user_name FROM stock_movements m JOIN products p ON p.id=m.product_id LEFT JOIN users u ON u.id=m.user_id ORDER BY m.id DESC LIMIT 300')).rows));
 app.get('/api/audit',auth,roles('Administrador','Gerente'),async(req,res)=>res.json((await pool.query('SELECT a.*,u.name user_name FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT 300')).rows));
-app.get('/api/financial',auth,permit('financial'),async(req,res)=>res.json((await pool.query('SELECT * FROM financial_entries ORDER BY id DESC')).rows));
-app.post('/api/financial',auth,roles('Administrador','Gerente'),async(req,res)=>{let x=req.body,q=await pool.query('INSERT INTO financial_entries(kind,description,category,amount,due_date,status) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[x.kind,x.description,x.category||'',+x.amount,x.due_date||null,x.status||'PENDENTE']);res.status(201).json(q.rows[0])});
+// ConstruGest 3.2.9 - Financeiro Profissional
+app.get('/api/financial',auth,permit('financial'),async(req,res)=>{
+  let q=await pool.query(`SELECT f.*,
+    CASE
+      WHEN COALESCE(f.party_name,'')<>'' THEN f.party_name
+      WHEN f.reference_type='SALE' THEN COALESCE((SELECT c.name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.id=f.reference_id),'Consumidor Final')
+      WHEN f.reference_type='PURCHASE' THEN COALESCE((SELECT sp.name FROM purchases p LEFT JOIN suppliers sp ON sp.id=p.supplier_id WHERE p.id=f.reference_id),'Fornecedor')
+      ELSE ''
+    END AS counterparty
+    FROM financial_entries f ORDER BY COALESCE(f.due_date,f.created_at::date) DESC,f.id DESC`);
+  res.json(q.rows)
+});
+app.get('/api/financial/summary',auth,permit('financial'),async(req,res)=>{
+  let q=await pool.query(`SELECT
+    COALESCE(sum(amount) FILTER(WHERE kind='RECEBER' AND status='PENDENTE'),0) receivable,
+    COALESCE(sum(amount) FILTER(WHERE kind IN('PAGAR','DESPESA') AND status='PENDENTE'),0) payable,
+    COALESCE(sum(amount) FILTER(WHERE kind='RECEBER' AND status='PENDENTE' AND due_date<current_date),0) overdue_receivable,
+    COALESCE(sum(amount) FILTER(WHERE kind IN('PAGAR','DESPESA') AND status='PENDENTE' AND due_date<current_date),0) overdue_payable,
+    COALESCE(sum(amount) FILTER(WHERE kind='RECEBER' AND status='PAGO' AND paid_at>=date_trunc('month',now())),0) received_month,
+    COALESCE(sum(amount) FILTER(WHERE kind IN('PAGAR','DESPESA') AND status='PAGO' AND paid_at>=date_trunc('month',now())),0) paid_month,
+    count(*) FILTER(WHERE status='PENDENTE') pending_count
+    FROM financial_entries`);
+  let x=q.rows[0];res.json(Object.fromEntries(Object.entries(x).map(([k,v])=>[k,+v||0])))
+});
+app.post('/api/financial',auth,roles('Administrador','Gerente'),async(req,res)=>{
+  try{
+    let x=req.body,kind=String(x.kind||'').toUpperCase(),amount=+x.amount,desc=String(x.description||'').trim();
+    if(!['PAGAR','RECEBER','DESPESA'].includes(kind))throw Error('Tipo financeiro inválido.');
+    if(!desc)throw Error('Informe a descrição.');
+    if(!Number.isFinite(amount)||amount<=0)throw Error('Informe um valor maior que zero.');
+    let q=await pool.query(`INSERT INTO financial_entries(kind,description,category,amount,due_date,status,party_name,document_no,notes,updated_at)
+      VALUES($1,$2,$3,$4,$5,'PENDENTE',$6,$7,$8,now()) RETURNING *`,
+      [kind,desc,String(x.category||'').trim(),amount,x.due_date||null,String(x.party_name||'').trim(),String(x.document_no||'').trim(),String(x.notes||'').trim()]);
+    await audit(pool,req.user.id,'Lançamento financeiro criado','#'+q.rows[0].id+' • '+desc+' • '+amount.toFixed(2));
+    res.status(201).json(q.rows[0])
+  }catch(e){res.status(400).json({error:e.message})}
+});
+app.put('/api/financial/:id',auth,roles('Administrador','Gerente'),async(req,res)=>{
+  try{
+    let current=(await pool.query('SELECT * FROM financial_entries WHERE id=$1',[req.params.id])).rows[0];
+    if(!current)throw Error('Lançamento não encontrado.');
+    if(current.status!=='PENDENTE')throw Error('Somente lançamentos pendentes podem ser editados.');
+    let x=req.body,kind=String(x.kind||'').toUpperCase(),amount=+x.amount,desc=String(x.description||'').trim();
+    if(!['PAGAR','RECEBER','DESPESA'].includes(kind)||!desc||!Number.isFinite(amount)||amount<=0)throw Error('Revise os dados do lançamento.');
+    let q=await pool.query(`UPDATE financial_entries SET kind=$1,description=$2,category=$3,amount=$4,due_date=$5,party_name=$6,document_no=$7,notes=$8,updated_at=now()
+      WHERE id=$9 RETURNING *`,[kind,desc,String(x.category||'').trim(),amount,x.due_date||null,String(x.party_name||'').trim(),String(x.document_no||'').trim(),String(x.notes||'').trim(),req.params.id]);
+    await audit(pool,req.user.id,'Lançamento financeiro editado','#'+req.params.id+' • '+desc);
+    res.json(q.rows[0])
+  }catch(e){res.status(400).json({error:e.message})}
+});
+app.post('/api/financial/:id/cancel',auth,roles('Administrador','Gerente'),async(req,res)=>{
+  try{
+    let f=(await pool.query('SELECT * FROM financial_entries WHERE id=$1',[req.params.id])).rows[0];
+    if(!f)throw Error('Lançamento não encontrado.');
+    if(f.status!=='PENDENTE')throw Error('Somente lançamentos pendentes podem ser cancelados.');
+    let reason=String(req.body.reason||'').trim();if(!reason)throw Error('Informe o motivo do cancelamento.');
+    let q=await pool.query(`UPDATE financial_entries SET status='CANCELADO',notes=trim(concat(COALESCE(notes,''),E'\nCancelamento: ',$1)),updated_at=now() WHERE id=$2 RETURNING *`,[reason,f.id]);
+    await audit(pool,req.user.id,'Lançamento financeiro cancelado','#'+f.id+' • '+reason);res.json(q.rows[0])
+  }catch(e){res.status(400).json({error:e.message})}
+});
 app.post('/api/users',auth,roles('Administrador'),async(req,res)=>{let x=req.body,h=await bcrypt.hash(x.password,12);try{let q=await pool.query('INSERT INTO users(name,email,password_hash,role,permissions) VALUES($1,$2,$3,$4,$5::jsonb) RETURNING id,name,email,role,permissions,active',[x.name,x.email,h,x.role,JSON.stringify(x.permissions||{})]);res.status(201).json(q.rows[0])}catch(e){res.status(400).json({error:'Não foi possível criar usuário. E-mail pode já existir.'})}});
 app.get('/api/users',auth,roles('Administrador'),async(req,res)=>res.json((await pool.query('SELECT id,name,email,role,permissions,active,created_at FROM users ORDER BY name')).rows));
 app.put('/api/users/:id',auth,roles('Administrador'),async(req,res)=>{try{let x=req.body||{};if(+req.params.id===+req.user.id&&x.active===false)throw Error('Você não pode desativar o próprio usuário.');let q=await pool.query('UPDATE users SET name=$1,email=$2,role=$3,permissions=$4::jsonb,active=$5 WHERE id=$6 RETURNING id,name,email,role,permissions,active',[x.name,x.email,x.role,JSON.stringify(x.permissions||{}),x.active!==false,req.params.id]);if(!q.rowCount)throw Error('Usuário não encontrado.');await pool.query('INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)',[req.user.id,'Permissões de usuário alteradas',x.name||('#'+req.params.id)]);res.json(q.rows[0])}catch(e){res.status(400).json({error:e.message})}});
@@ -155,7 +213,7 @@ app.get('/api/settings',auth,async(req,res)=>{let q=await pool.query("SELECT dat
 app.put('/api/settings',auth,roles('Administrador'),async(req,res)=>{try{let data=req.body||{};await pool.query("INSERT INTO app_settings(id,data,updated_at) VALUES(1,$1::jsonb,now()) ON CONFLICT(id) DO UPDATE SET data=EXCLUDED.data,updated_at=now()",[JSON.stringify(data)]);await pool.query('INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)',[req.user.id,'Configurações alteradas','Configurações gerais do sistema']);res.json({ok:true,data})}catch(e){res.status(400).json({error:'Não foi possível salvar as configurações: '+e.message})}});
 
 const BACKUP_TABLES=['users','products','customers','suppliers','cash_sessions','cash_movements','sales','sale_items','stock_movements','purchases','purchase_items','financial_entries','audit_logs','quotes','quote_items','sale_payments','inventory_counts','inventory_count_items','app_settings','suspended_sales'];
-const BACKUP_FORMAT='ConstruGest Backup', BACKUP_SCHEMA=3, BACKUP_VERSION='3.2.6';
+const BACKUP_FORMAT='ConstruGest Backup', BACKUP_SCHEMA=3, BACKUP_VERSION='3.2.9';
 const backupDir=()=>path.join(process.env.ELECTRON_DATA_DIR?path.dirname(process.env.ELECTRON_DATA_DIR):path.join(process.cwd(),'data'),'backups');
 const safeStamp=()=>new Date().toISOString().replace(/[:.]/g,'-');
 async function buildLogicalBackup(kind='MANUAL'){
@@ -177,4 +235,4 @@ app.get('/api/backup/status',auth,roles('Administrador'),async(req,res)=>{try{le
 app.post('/api/backup/create',auth,roles('Administrador'),async(req,res)=>{try{let out=await saveLogicalBackup('MANUAL');await audit(pool,req.user.id,'Backup manual criado',out.name);res.json({ok:true,name:out.name,size:out.size,created_at:out.created_at,summary:out.summary})}catch(e){res.status(500).json({error:'Falha ao salvar backup: '+e.message})}});
 app.post('/api/backup/restore',auth,roles('Administrador'),async(req,res)=>{try{let b=req.body;if(!b||b.format!==BACKUP_FORMAT||!b.tables)throw Error('Arquivo de backup inválido.');if(!Array.isArray(b.tables.users)||!Array.isArray(b.tables.products))throw Error('Backup incompleto: tabelas essenciais ausentes.');let safety=await saveLogicalBackup('PRE-RESTORE');let result=await tx(async c=>{await c.query(`TRUNCATE TABLE ${[...BACKUP_TABLES].reverse().join(',')} RESTART IDENTITY CASCADE`);for(const t of BACKUP_TABLES){let rows=Array.isArray(b.tables[t])?b.tables[t]:[];for(const row of rows){let cols=Object.keys(row);if(!cols.length)continue;let vals=cols.map(k=>row[k]);let ps=cols.map((_,i)=>'$'+(i+1)).join(',');await c.query(`INSERT INTO ${t} (${cols.join(',')}) VALUES (${ps})`,vals)}if(rows.length){try{await c.query(`SELECT setval(pg_get_serial_sequence('${t}','id'),COALESCE((SELECT max(id) FROM ${t}),1),true)`)}catch{}}}return {ok:true}});res.json({...result,safety_backup:safety.name})}catch(e){res.status(400).json({error:'Não foi possível restaurar: '+e.message})}});
 app.use('/api',(req,res)=>res.status(404).json({error:'Rota não encontrada.'}));
-async function boot(){await initDb();let n=+(await pool.query('SELECT count(*) n FROM users')).rows[0].n;if(!n){let h=await bcrypt.hash('Admin@123',12);await pool.query("INSERT INTO users(name,email,password_hash,role) VALUES('Administrador','admin@construgest.local',$1,'Administrador')",[h]);await pool.query("INSERT INTO customers(name,type) VALUES('Consumidor Final','Consumidor')");await pool.query("INSERT INTO products(code,name,brand,category,unit,stock,min_stock,max_stock,cost,retail,wholesale,wholesale_min,promo) VALUES ('001','Cimento 50kg','Exemplo','Cimento','SC',35,10,80,28,39.90,36,10,34.90),('002','Torneira Jardim','Krona','Hidráulica','UN',8,10,50,2.10,4.99,4.20,10,3.99),('003','Lâmpada LED 9W','Exemplo','Elétrica','UN',80,20,120,2.20,3.50,3.10,20,2.99)")};await autoBackupIfDue();setInterval(autoBackupIfDue,60*60*1000).unref?.();app.listen(PORT,HOST,()=>console.log(`ConstruGest 3.2.6 em http://${HOST}:${PORT}`))}boot().catch(e=>{console.error(e);process.exit(1)});
+async function boot(){await initDb();let n=+(await pool.query('SELECT count(*) n FROM users')).rows[0].n;if(!n){let h=await bcrypt.hash('Admin@123',12);await pool.query("INSERT INTO users(name,email,password_hash,role) VALUES('Administrador','admin@construgest.local',$1,'Administrador')",[h]);await pool.query("INSERT INTO customers(name,type) VALUES('Consumidor Final','Consumidor')");await pool.query("INSERT INTO products(code,name,brand,category,unit,stock,min_stock,max_stock,cost,retail,wholesale,wholesale_min,promo) VALUES ('001','Cimento 50kg','Exemplo','Cimento','SC',35,10,80,28,39.90,36,10,34.90),('002','Torneira Jardim','Krona','Hidráulica','UN',8,10,50,2.10,4.99,4.20,10,3.99),('003','Lâmpada LED 9W','Exemplo','Elétrica','UN',80,20,120,2.20,3.50,3.10,20,2.99)")};await autoBackupIfDue();setInterval(autoBackupIfDue,60*60*1000).unref?.();app.listen(PORT,HOST,()=>console.log(`ConstruGest 3.2.9 em http://${HOST}:${PORT}`))}boot().catch(e=>{console.error(e);process.exit(1)});
