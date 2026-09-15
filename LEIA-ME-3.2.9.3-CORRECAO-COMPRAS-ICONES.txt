@@ -1,0 +1,6 @@
+CONSTRUGEST 3.2.9.3
+Correção da regressão 'compras is not defined'.
+O módulo Compras completo foi restaurado da base 3.2.7 aprovada.
+Mantém Orçamentos e Financeiro da 3.2.9.1 e os novos ícones de Orçamentos Salvos.
+Novo teste de regressão exige a união das funções da 3.2.7 e 3.2.9.1.
+Sem alteração de banco/schema.
