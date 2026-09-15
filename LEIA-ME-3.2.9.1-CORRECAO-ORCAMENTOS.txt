@@ -1,0 +1,5 @@
+CONSTRUGEST 3.2.9.1 — CORREÇÃO ORÇAMENTOS
+Restaura integralmente Novo Orçamento e Orçamentos Salvos da 3.2.7 aprovada.
+Mantém Financeiro Profissional 3.2.9, PDV, Caixa, Estoque e Backup.
+Não apaga nem recria o banco.
+Inclui teste de regressão das funções críticas.
