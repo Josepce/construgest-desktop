@@ -59,21 +59,33 @@ app.get('/api/financial/summary',auth,permit('financial'),async(req,res)=>{
     COALESCE(sum(amount) FILTER(WHERE kind IN('PAGAR','DESPESA') AND status='PENDENTE' AND due_date<current_date),0) overdue_payable,
     COALESCE(sum(amount) FILTER(WHERE kind='RECEBER' AND status='PAGO' AND paid_at>=date_trunc('month',now())),0) received_month,
     COALESCE(sum(amount) FILTER(WHERE kind IN('PAGAR','DESPESA') AND status='PAGO' AND paid_at>=date_trunc('month',now())),0) paid_month,
-    count(*) FILTER(WHERE status='PENDENTE') pending_count
+    count(*) FILTER(WHERE status='PENDENTE') pending_count,
+    count(*) FILTER(WHERE status='PENDENTE' AND due_date=current_date) due_today_count,
+    COALESCE(sum(amount) FILTER(WHERE status='PENDENTE' AND due_date=current_date),0) due_today_amount,
+    count(*) FILTER(WHERE status='PENDENTE' AND due_date<current_date) overdue_count,
+    COALESCE(sum(amount) FILTER(WHERE kind='RECEBER' AND status='PENDENTE' AND due_date BETWEEN current_date AND current_date+7),0) receivable_7,
+    COALESCE(sum(amount) FILTER(WHERE kind IN('PAGAR','DESPESA') AND status='PENDENTE' AND due_date BETWEEN current_date AND current_date+7),0) payable_7
     FROM financial_entries`);
   let x=q.rows[0];res.json(Object.fromEntries(Object.entries(x).map(([k,v])=>[k,+v||0])))
 });
 app.post('/api/financial',auth,roles('Administrador','Gerente'),async(req,res)=>{
   try{
-    let x=req.body,kind=String(x.kind||'').toUpperCase(),amount=+x.amount,desc=String(x.description||'').trim();
+    let x=req.body,kind=String(x.kind||'').toUpperCase(),amount=+x.amount,desc=String(x.description||'').trim(),installments=Math.max(1,Math.min(60,Math.trunc(+x.installments||1)));
     if(!['PAGAR','RECEBER','DESPESA'].includes(kind))throw Error('Tipo financeiro inválido.');
     if(!desc)throw Error('Informe a descrição.');
     if(!Number.isFinite(amount)||amount<=0)throw Error('Informe um valor maior que zero.');
-    let q=await pool.query(`INSERT INTO financial_entries(kind,description,category,amount,due_date,status,party_name,document_no,notes,updated_at)
-      VALUES($1,$2,$3,$4,$5,'PENDENTE',$6,$7,$8,now()) RETURNING *`,
-      [kind,desc,String(x.category||'').trim(),amount,x.due_date||null,String(x.party_name||'').trim(),String(x.document_no||'').trim(),String(x.notes||'').trim()]);
-    await audit(pool,req.user.id,'Lançamento financeiro criado','#'+q.rows[0].id+' • '+desc+' • '+amount.toFixed(2));
-    res.status(201).json(q.rows[0])
+    if(installments>1&&!x.due_date)throw Error('Informe o primeiro vencimento para parcelar.');
+    let created=await tx(async c=>{
+      let rows=[],base=Math.floor((amount/installments)*100)/100,remaining=Math.round(amount*100)/100;
+      for(let k=1;k<=installments;k++){
+        let value=k===installments?remaining:base;remaining=Math.round((remaining-value)*100)/100;
+        let due=x.due_date||null;if(due&&k>1){let d=new Date(due+'T12:00:00');d.setMonth(d.getMonth()+k-1);due=d.toISOString().slice(0,10)}
+        let label=installments>1?desc+' • parcela '+k+'/'+installments:desc;
+        let q=await c.query(`INSERT INTO financial_entries(kind,description,category,amount,due_date,status,party_name,document_no,notes,installment_no,installment_count,updated_at) VALUES($1,$2,$3,$4,$5,'PENDENTE',$6,$7,$8,$9,$10,now()) RETURNING *`,[kind,label,String(x.category||'').trim(),value,due,String(x.party_name||'').trim(),String(x.document_no||'').trim(),String(x.notes||'').trim(),k,installments]);rows.push(q.rows[0]);
+      }
+      await audit(c,req.user.id,'Lançamento financeiro criado',desc+' • '+amount.toFixed(2)+' • '+installments+' parcela(s)');return rows;
+    });
+    res.status(201).json(installments===1?created[0]:created)
   }catch(e){res.status(400).json({error:e.message})}
 });
 app.put('/api/financial/:id',auth,roles('Administrador','Gerente'),async(req,res)=>{
@@ -234,7 +246,7 @@ app.get('/api/settings',auth,async(req,res)=>{let q=await pool.query("SELECT dat
 app.put('/api/settings',auth,roles('Administrador'),async(req,res)=>{try{let data=req.body||{};await pool.query("INSERT INTO app_settings(id,data,updated_at) VALUES(1,$1::jsonb,now()) ON CONFLICT(id) DO UPDATE SET data=EXCLUDED.data,updated_at=now()",[JSON.stringify(data)]);await pool.query('INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)',[req.user.id,'Configurações alteradas','Configurações gerais do sistema']);res.json({ok:true,data})}catch(e){res.status(400).json({error:'Não foi possível salvar as configurações: '+e.message})}});
 
 const BACKUP_TABLES=['users','products','customers','suppliers','cash_sessions','cash_movements','sales','sale_items','stock_movements','purchases','purchase_items','financial_entries','audit_logs','quotes','quote_items','sale_payments','inventory_counts','inventory_count_items','app_settings','suspended_sales'];
-const BACKUP_FORMAT='ConstruGest Backup', BACKUP_SCHEMA=3, BACKUP_VERSION='3.3.1';
+const BACKUP_FORMAT='ConstruGest Backup', BACKUP_SCHEMA=3, BACKUP_VERSION='3.4.0';
 const backupDir=()=>path.join(process.env.ELECTRON_DATA_DIR?path.dirname(process.env.ELECTRON_DATA_DIR):path.join(process.cwd(),'data'),'backups');
 const safeStamp=()=>new Date().toISOString().replace(/[:.]/g,'-');
 async function buildLogicalBackup(kind='MANUAL'){

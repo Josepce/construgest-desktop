@@ -168,7 +168,7 @@ async function pdv(){
       <button class="legacy-finish" onclick="finishSale()">F12 • FINALIZAR VENDA</button>
     </div>
     <div class="legacy-cash open"><span>▣</span><b>CAIXA ABERTO</b><strong>${esc(cash.operator||me.name)}</strong></div>
-    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span id="pdvNetworkStatus">● Servidor conectado</span><span>ConstruGest 3.3.1</span></div>
+    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span id="pdvNetworkStatus">● Servidor conectado</span><span>ConstruGest 3.4.0</span></div>
   </div>`
 }
 function installPdvShortcuts(){
@@ -360,13 +360,13 @@ async function confirmCancelQuote(id){try{await api('/quotes/'+id+'/cancel',{met
 
 let finData=[],finFilter={text:'',kind:'',status:'',from:'',to:''};
 const finDate=v=>v?new Date(String(v).slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR'):'—';
-const finStatus=x=>x.status==='PENDENTE'&&x.due_date&&String(x.due_date).slice(0,10)<new Date().toISOString().slice(0,10)?'VENCIDO':x.status;
+const finStatus=x=>x.status==='PENDENTE'&&x.due_date&&String(x.due_date).slice(0,10)<new Date().toISOString().slice(0,10)?'VENCIDO':(x.status==='PAGO'&&x.kind==='RECEBER'?'RECEBIDO':x.status);
 const finKindLabel=k=>k==='RECEBER'?'A RECEBER':k==='PAGAR'?'A PAGAR':'DESPESA';
 async function financeiro(){
   let [f,sum]=await Promise.all([api('/financial'),api('/financial/summary')]);finData=f;window._finSummary=sum;
   setTimeout(()=>filterFinance(),0);
   return `<div class="fin-pro">
-    <div class="fin-hero"><div><span class=eyebrow>FINANCEIRO • 3.2.9.1</span><h2>Financeiro Profissional</h2><p>Contas a pagar e receber, vencimentos, baixas e resultado em uma única visão.</p></div>${['Administrador','Gerente'].includes(me.role)?'<button class=primary onclick=finForm()>+ Novo lançamento</button>':''}</div>
+    <div class="fin-hero"><div><span class=eyebrow>FINANCEIRO • 3.4.0</span><h2>Financeiro Profissional</h2><p>Contas a pagar e receber, vencimentos, baixas e resultado em uma única visão.</p></div>${['Administrador','Gerente'].includes(me.role)?'<button class=primary onclick=finForm()>+ Novo lançamento</button>':''}</div>
     <div class="fin-kpis">
       <div class="fin-kpi receive"><small>A RECEBER</small><strong>${money(sum.receivable)}</strong><span>Pendente</span></div>
       <div class="fin-kpi pay"><small>A PAGAR</small><strong>${money(sum.payable)}</strong><span>Pendente</span></div>
@@ -375,6 +375,7 @@ async function financeiro(){
       <div class="fin-kpi"><small>PAGO NO MÊS</small><strong>${money(sum.paid_month)}</strong><span>Saídas baixadas</span></div>
       <div class="fin-kpi result"><small>RESULTADO DO MÊS</small><strong>${money(sum.received_month-sum.paid_month)}</strong><span>Recebido − pago</span></div>
     </div>
+    <div class="fin-agenda"><div><small>VENCE HOJE</small><b>${sum.due_today_count||0} conta(s)</b><span>${money(sum.due_today_amount)}</span></div><div><small>PRÓXIMOS 7 DIAS • RECEBER</small><b>${money(sum.receivable_7)}</b><span>Previsão de entrada</span></div><div><small>PRÓXIMOS 7 DIAS • PAGAR</small><b>${money(sum.payable_7)}</b><span>Compromissos previstos</span></div><div><small>CONTAS VENCIDAS</small><b class=danger>${sum.overdue_count||0}</b><span>${money(sum.overdue_receivable+sum.overdue_payable)}</span></div></div>
     <div class="fin-panel">
       <div class="fin-tabs">
         <button class=active data-fin-kind="" onclick="setFinKind(this,'')">Todos</button>
@@ -384,7 +385,7 @@ async function financeiro(){
       </div>
       <div class="fin-filters">
         <input id=finSearch placeholder="Buscar descrição, cliente, fornecedor, categoria ou documento..." oninput=filterFinance()>
-        <select id=finStatus onchange=filterFinance()><option value="">Todas as situações</option><option>PENDENTE</option><option>VENCIDO</option><option>PAGO</option><option>CANCELADO</option></select>
+        <select id=finStatus onchange=filterFinance()><option value="">Todas as situações</option><option>PENDENTE</option><option>VENCIDO</option><option>RECEBIDO</option><option>PAGO</option><option>CANCELADO</option></select>
         <input id=finFrom type=date onchange=filterFinance() title="Vencimento inicial">
         <input id=finTo type=date onchange=filterFinance() title="Vencimento final">
         <button class=secondary onclick=clearFinFilters()>Limpar</button>
@@ -414,12 +415,13 @@ function finForm(item=null){
     <div><label>Cliente / Fornecedor / Favorecido</label><input id=fparty maxlength=120 value="${esc(x.party_name||x.counterparty||'')}"></div>
     <div><label>Categoria</label><input id=fcategory maxlength=80 value="${esc(x.category||'')}" placeholder="Ex.: Fornecedor, Energia, Aluguel"></div>
     <div><label>Documento</label><input id=fdoc maxlength=60 value="${esc(x.document_no||'')}" placeholder="NF, boleto, referência..."></div>
-    <div><label>Valor *</label><input id=famount type=number min=.01 step=.01 value="${x.amount||''}"></div>
+    <div><label>Valor ${edit?'*':'total *'}</label><input id=famount type=number min=.01 step=.01 value="${x.amount||''}"></div>
+    ${edit?'':`<div><label>Parcelas</label><input id=finstallments type=number min=1 max=60 step=1 value=1><small class=muted>O valor total será dividido automaticamente.</small></div>`}
     <div class=span2><label>Observações</label><textarea id=fnotes rows=3>${esc(x.notes||'')}</textarea></div>
   </div><div style="margin-top:18px"><button class=primary onclick="saveFin(${edit?x.id:'null'})">${edit?'SALVAR ALTERAÇÕES':'SALVAR LANÇAMENTO'}</button> <button onclick=closeModal()>Cancelar</button></div>`)
 }
 async function saveFin(id=null){
-  let body={kind:fkind.value,description:fdesc.value.trim(),party_name:fparty.value.trim(),category:fcategory.value.trim(),document_no:fdoc.value.trim(),amount:+famount.value,due_date:fdue.value||null,notes:fnotes.value.trim()};
+  let body={kind:fkind.value,description:fdesc.value.trim(),party_name:fparty.value.trim(),category:fcategory.value.trim(),document_no:fdoc.value.trim(),amount:+famount.value,due_date:fdue.value||null,notes:fnotes.value.trim(),installments:id?1:Math.max(1,Math.min(60,+document.getElementById('finstallments')?.value||1))};
   if(!body.description)return toast('Informe a descrição.');if(!body.amount||body.amount<=0)return toast('Informe um valor maior que zero.');
   try{await api('/financial'+(id?'/'+id:''),{method:id?'PUT':'POST',body:JSON.stringify(body)});closeModal();toast(id?'Lançamento atualizado.':'Lançamento criado.');render('financeiro')}catch(e){toast(e.message)}
 }
@@ -436,7 +438,7 @@ async function relatorios(){
   let cfg=await api('/settings'),bs=null,dt=gerDefaultDates();
   if(me.role==='Administrador')try{bs=await api('/backup/status')}catch{}
   setTimeout(()=>loadGerencialReport(),0);
-  return `<div class="ger-pro"><div class="ger-hero"><div><span class=eyebrow>RELATÓRIOS GERENCIAIS • 3.3.1</span><h2>Decisões com base nos números da loja</h2><p>Analise vendas, produtos, clientes, vendedores, compras, estoque e financeiro por período.</p></div><button class=secondary onclick="printGerencialReport()">▣ Imprimir relatório</button></div>
+  return `<div class="ger-pro"><div class="ger-hero"><div><span class=eyebrow>RELATÓRIOS GERENCIAIS • 3.4.0</span><h2>Decisões com base nos números da loja</h2><p>Analise vendas, produtos, clientes, vendedores, compras, estoque e financeiro por período.</p></div><button class=secondary onclick="printGerencialReport()">▣ Imprimir relatório</button></div>
   <div class="panel ger-filters"><div><label>Data inicial</label><input id=gerFrom type=date value="${dt.from}"></div><div><label>Data final</label><input id=gerTo type=date value="${dt.to}"></div><button class=primary onclick=loadGerencialReport()>Atualizar relatório</button><button onclick="gerPreset(0)">Hoje</button><button onclick="gerPreset(30)">30 dias</button><button onclick="gerPreset(90)">90 dias</button></div>
   <div id=gerReportBody><div class="panel loading">Carregando indicadores...</div></div>
   ${me.role==='Administrador'?`<div class="panel backup-pro"><div class=toolbar><div><span class=eyebrow>SEGURANÇA DOS DADOS</span><h3 style="margin:5px 0">Backup e restauração</h3><small class=muted>O ConstruGest cria uma cópia automática diária e mantém as 30 cópias mais recentes.</small></div><span class="badge green">● Backup automático ativo</span></div><div id=backupStatus class=backup-status>${backupStatusHtml(bs)}</div><div class=backup-actions><button class=primary onclick="backupNow()">↓ Fazer Backup Agora</button><button class=secondary onclick="downloadBackup()">⇩ Baixar uma cópia</button><button class=secondary onclick="chooseRestoreBackup()">↥ Restaurar Backup</button></div><input id=restoreBackupFile type=file accept="application/json,.json" style="display:none" onchange="restoreBackupFile(this)"><div class="alert yellow" style="margin-top:14px"><b>Proteção extra:</b> antes de qualquer restauração, o sistema cria automaticamente um backup de segurança dos dados atuais.</div></div>`:''}</div>`;
@@ -473,7 +475,7 @@ async function configuracoes(){
  <div class=panel><h3>🏢 Dados da empresa</h3><div class=formgrid><div class=span2><label>Nome fantasia</label><input id=cfgTrade value="${esc(c.trade_name||'')}"></div><div class=span2><label>Razão social</label><input id=cfgLegal value="${esc(c.legal_name||'')}"></div><div><label>CNPJ / CPF</label><input id=cfgDoc value="${esc(c.doc||'')}"></div><div><label>Inscrição Estadual</label><input id=cfgIe value="${esc(c.ie||'')}"></div><div><label>Telefone</label><input id=cfgPhone value="${esc(c.phone||'')}"></div><div><label>WhatsApp</label><input id=cfgWhatsapp value="${esc(c.whatsapp||'')}"></div><div class=span2><label>E-mail</label><input id=cfgEmail value="${esc(c.email||'')}"></div><div class=span2><label>Endereço</label><input id=cfgAddress value="${esc(c.address||'')}"></div><div><label>Cidade</label><input id=cfgCity value="${esc(c.city||'')}"></div><div><label>UF</label><input id=cfgUf maxlength=2 value="${esc(c.uf||'')}"></div></div><div class=company-logo-config><div class=company-logo-preview id=cfgLogoPreview>${c.logo_data?`<img src="${c.logo_data}" alt="Logomarca">`:'<span>Sem logomarca</span>'}</div><div><b>Logomarca da empresa</b><small>PNG ou JPG • recomendado até 500 KB</small><input id=cfgLogoFile type=file accept="image/png,image/jpeg" style="display:none" onchange=chooseCompanyLogo(this)><button class=secondary onclick="cfgLogoFile.click()">Selecionar imagem</button> <button onclick=removeCompanyLogo()>Remover logo</button><label class=checkline><input id=cfgShowLogoPdv type=checkbox ${c.show_logo_pdv!==false?'checked':''}> Exibir logomarca no PDV</label></div></div></div>
  <div class=panel><h3>🧾 Vendas e PDV</h3><label>Desconto máximo para gerente (%)</label><input id=cfgDiscount type=number min=0 max=100 step=.1 value="${v.max_discount??10}"><label>Mensagem no comprovante</label><textarea id=cfgReceipt rows=3>${esc(v.receipt_message||'Obrigado pela preferência!')}</textarea><label>Mensagem no rodapé do orçamento</label><textarea id=cfgQuoteMsg rows=3>${esc(v.quote_message||'Orçamento sujeito à disponibilidade de estoque e validade informada.')}</textarea><label class=checkline><input id=cfgRequireCash type=checkbox ${v.require_open_cash!==false?'checked':''}> Exigir caixa aberto para realizar vendas</label><label class=checkline><input id=cfgPrint type=checkbox ${v.auto_print?'checked':''}> Imprimir comprovante automaticamente</label></div>
  <div class=panel><h3>📦 Estoque</h3><label>Estoque mínimo padrão</label><input id=cfgMinStock type=number min=0 step=.001 value="${st.default_min??0}"><label class=checkline><input id=cfgNegative type=checkbox ${st.allow_negative?'checked':''}> Permitir estoque negativo</label><label class=checkline><input id=cfgLowAlert type=checkbox ${st.low_stock_alert!==false?'checked':''}> Exibir alertas de estoque baixo</label><div class="alert yellow">Na 2.5 esta regra é aplicada diretamente pelo PDV.</div></div>
- <div class=panel><h3>🖥️ Sistema e segurança</h3><label>Tema</label><select id=cfgTheme><option value=light ${sy.theme!=='dark'?'selected':''}>Claro</option><option value=dark ${sy.theme==='dark'?'selected':''}>Escuro</option></select><label>Nome exibido do sistema</label><input id=cfgSystemName value="${esc(sy.name||'ConstruGest')}"><div class=alert green><b>ConstruGest 3.3.1</b><br>Banco central local, funcionamento offline e acesso em rede local.</div><button class=secondary onclick="showNetworkInfo()">🌐 Ver acesso em rede</button> <button onclick="render('relatorios')">Abrir Backup e Restauração</button></div>
+ <div class=panel><h3>🖥️ Sistema e segurança</h3><label>Tema</label><select id=cfgTheme><option value=light ${sy.theme!=='dark'?'selected':''}>Claro</option><option value=dark ${sy.theme==='dark'?'selected':''}>Escuro</option></select><label>Nome exibido do sistema</label><input id=cfgSystemName value="${esc(sy.name||'ConstruGest')}"><div class=alert green><b>ConstruGest 3.4.0</b><br>Banco central local, funcionamento offline e acesso em rede local.</div><button class=secondary onclick="showNetworkInfo()">🌐 Ver acesso em rede</button> <button onclick="render('relatorios')">Abrir Backup e Restauração</button></div>
  </div>`
 }
 

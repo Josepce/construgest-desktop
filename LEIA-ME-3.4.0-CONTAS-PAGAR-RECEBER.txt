@@ -1,0 +1,17 @@
+CONSTRUGEST 3.4.0 — CONTAS A PAGAR E CONTAS A RECEBER
+
+Base: ConstruGest 3.3.1 aprovada nos testes funcionais realizados.
+
+NOVIDADES
+- Financeiro com agenda de vencimentos: vence hoje, próximos 7 dias e vencidos.
+- Contas a pagar, contas a receber e despesas em uma única tela.
+- Cadastro parcelado em até 60 parcelas, com divisão automática do valor e vencimentos mensais.
+- Baixa de pagamento e recebimento com forma de pagamento.
+- Status visual PENDENTE, VENCIDO, PAGO, RECEBIDO e CANCELADO.
+- Histórico, filtros por tipo, situação, texto e período.
+- Integração mantida com compras, crediário, caixa, relatórios e backup.
+- Atualização Segura preservada.
+- Visual aprovado do PDV preservado.
+
+IMPORTANTE
+Use o atualizador ConstruGest-Atualizacao-3.4.0-x64.exe para atualizar uma instalação existente. Não desinstale a versão anterior.
