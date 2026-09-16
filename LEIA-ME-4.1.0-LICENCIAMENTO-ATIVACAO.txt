@@ -1,0 +1,22 @@
+PORTO PRIME 4.1.0 — LICENCIAMENTO E ATIVAÇÃO
+
+Esta versão adiciona licenciamento offline assinado digitalmente.
+
+RECURSOS
+- ID exclusivo do computador no Windows, derivado do MachineGuid e convertido em hash.
+- Tela de ativação antes do login.
+- Licença vinculada ao ID da máquina.
+- Assinatura Ed25519 verificada pelo aplicativo com chave pública.
+- Chave privada NÃO faz parte deste projeto e NÃO deve ser enviada ao GitHub.
+- Licença pode conter cliente, CPF/CNPJ, plano, emissão e validade.
+- Consulta da licença em Configurações > Ver licença.
+- Operação offline após ativação.
+
+SEGURANÇA
+A chave privada de emissão deve permanecer somente com o proprietário da Porto Prime. O aplicativo distribuído contém apenas a chave pública, que não permite criar licenças válidas.
+
+MIGRAÇÃO
+Mantido appId br.com.construgest.desktop e mecanismo de seleção do banco anterior para preservar instalações existentes.
+
+IMPORTANTE
+Esta etapa implementa licenciamento. O endurecimento completo de permissões/RBAC do servidor continua sendo uma etapa separada antes de exposição à internet. A porta 3210 não deve ser exposta à internet.
