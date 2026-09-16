@@ -67,6 +67,6 @@ jobs:
           path: |
             dist/ConstruGest-Portable-3.5.0-x64.exe
             dist/ConstruGest-Setup-3.5.0-x64.exe
-            dist/ConstruGest-Atualizacao-3.4.0-x64.exe
+            dist/ConstruGest-Atualizacao-3.5.0-x64.exe
           if-no-files-found: error
           retention-days: 30
