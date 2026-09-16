@@ -1,0 +1,19 @@
+CONSTRUGEST 3.5.0 — IMPORTAÇÃO E BACKUP DE PRODUTOS
+
+Base: 3.4.0 aprovada nos testes funcionais.
+
+NOVO EM PRODUTOS
+- Importar planilhas XLSX/XLS com prévia antes da gravação.
+- Reconhece Código, Descrição, Marca, Categoria, Unidade, Preço de Custo, Preço de Venda, Estoque e Código de Barras.
+- Preserva códigos textuais com zeros à esquerda quando a planilha os armazena como texto.
+- Duplicidades por código: Ignorar existentes ou Atualizar existentes.
+- Ao atualizar, o estoque existente não é sobrescrito.
+- Exportar backup XLSX dos produtos ativos.
+- Operações registradas na auditoria.
+- Limite de 5.000 produtos por arquivo na prévia.
+
+PERMISSÃO
+Administrador, Gerente e Estoquista.
+
+IMPORTANTE
+O backup geral do ConstruGest continua sendo o mecanismo completo de restauração do sistema. O backup de produtos serve para portabilidade e recadastro do catálogo.
