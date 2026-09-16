@@ -49,9 +49,9 @@ jobs:
         shell: pwsh
         run: |
           $expected = @(
-            'dist/ConstruGest-Portable-3.5.0-x64.exe',
-            'dist/ConstruGest-Setup-3.5.0-x64.exe',
-            'dist/ConstruGest-Atualizacao-3.5.0-x64.exe'
+            'dist/ConstruGest-Portable-4.0.0-x64.exe',
+            'dist/ConstruGest-Setup-4.0.0-x64.exe',
+            'dist/ConstruGest-Atualizacao-4.0.0-x64.exe'
           )
           foreach ($file in $expected) {
             if (-not (Test-Path $file)) {
@@ -65,8 +65,8 @@ jobs:
         with:
           name: ConstruGest-Windows
           path: |
-            dist/ConstruGest-Portable-3.5.0-x64.exe
-            dist/ConstruGest-Setup-3.5.0-x64.exe
-            dist/ConstruGest-Atualizacao-3.5.0-x64.exe
+            dist/ConstruGest-Portable-4.0.0-x64.exe
+            dist/ConstruGest-Setup-4.0.0-x64.exe
+            dist/ConstruGest-Atualizacao-4.0.0-x64.exe
           if-no-files-found: error
           retention-days: 30
