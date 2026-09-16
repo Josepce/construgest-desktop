@@ -1,0 +1,27 @@
+CONSTRUGEST 3.3.1 — RELATÓRIOS GERENCIAIS
+
+Base: ConstruGest 3.3.0 aprovada nos testes funcionais.
+
+NOVIDADES
+- Relatórios gerenciais com filtro por período.
+- Faturamento, quantidade de vendas, ticket médio, lucro bruto e margem.
+- Entradas, saídas e resultado financeiro.
+- Vendas por dia e formas de pagamento.
+- Produtos mais vendidos e produtos sem venda no período.
+- Vendas por vendedor e clientes que mais compraram.
+- Compras por período e principais fornecedores.
+- Situação atual do estoque: valor a custo, estoque baixo e zerados.
+- Impressão do relatório com identidade/logomarca da empresa.
+- Backup e restauração preservados na mesma área.
+- Correção do texto antigo ConstruGest 2.6.0 em Configurações.
+- Atualização Segura preservada.
+
+SEGURANÇA DE ACESSO
+O endpoint do relatório gerencial é restrito aos perfis Administrador e Gerente.
+
+TESTE DE ACEITAÇÃO
+1. Atualizar 3.3.0 -> 3.3.1 sem desinstalar.
+2. Confirmar dados, logomarca e configurações.
+3. Abrir Relatórios Gerenciais e testar Hoje, 30 dias e período personalizado.
+4. Testar impressão.
+5. Confirmar PDV, Orçamentos, Compras, Financeiro e Backup.

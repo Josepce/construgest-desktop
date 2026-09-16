@@ -1,7 +1,7 @@
 !include "FileFunc.nsh"
 
 !macro customInit
-  ; ConstruGest 3.3.0 - atualização segura.
+  ; ConstruGest 3.3.1 - atualização segura.
   ; A identidade appId/productName permanece a mesma para o NSIS reconhecer a instalação anterior.
   ; Antes de substituir os binários, fecha o aplicativo e cria uma cópia física de segurança do PGlite.
   MessageBox MB_OKCANCEL|MB_ICONINFORMATION "ConstruGest - Atualização Segura$\r$\n$\r$\nFeche o ConstruGest nos outros computadores antes de continuar.$\r$\nA atualização preservará banco de dados, configurações e logomarca.$\r$\nUma cópia de segurança será criada antes da instalação." IDOK +2
