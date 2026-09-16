@@ -1,0 +1,20 @@
+PORTO PRIME 4.0.0 — SISTEMA DE GESTÃO COMERCIAL
+
+Base: ConstruGest 3.5.0 aprovada nos testes funcionais realizados.
+
+OBJETIVO DESTA VERSÃO
+- Nova identidade comercial PORTO PRIME.
+- Mantém o visual e fluxo aprovado do PDV.
+- Preserva Produtos, Estoque, Compras, Orçamentos, Financeiro, Contas a Pagar/Receber, Relatórios, Backup, Rede Local e Importação/Exportação de Produtos.
+- Mantém o appId interno da linha ConstruGest nesta transição para favorecer atualização in-place.
+- O Electron procura banco existente nas pastas legadas ConstruGest antes de criar a pasta Porto Prime.
+- O atualizador seguro cria cópia física antes de atualizar e reconhece pastas antigas e novas.
+- Backups lógicos antigos no formato ConstruGest Backup continuam aceitos.
+
+ARQUIVOS WINDOWS ESPERADOS
+- PortoPrime-Portable-4.0.0-x64.exe
+- PortoPrime-Setup-4.0.0-x64.exe
+- PortoPrime-Atualizacao-4.0.0-x64.exe
+
+IMPORTANTE
+Esta é a fundação da edição comercial. Licenciamento/ativação comercial real ainda não está implementado nesta versão. Não exponha a porta 3210 à internet; o modo rede é destinado à rede local confiável.

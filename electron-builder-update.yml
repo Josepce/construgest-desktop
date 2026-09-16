@@ -1,5 +1,5 @@
 appId: br.com.construgest.desktop
-productName: ConstruGest
+productName: Porto Prime
 asar: true
 files:
   - electron-main.cjs
@@ -19,9 +19,9 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: ConstruGest
+  shortcutName: Porto Prime
   deleteAppDataOnUninstall: false
   runAfterFinish: true
   include: build/installer-update.nsh
-  artifactName: ConstruGest-Atualizacao-${version}-${arch}.${ext}
+  artifactName: PortoPrime-Atualizacao-${version}-${arch}.${ext}
 publish: null
