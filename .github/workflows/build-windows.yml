@@ -1,4 +1,4 @@
-name: Gerar ConstruGest Windows EXE
+name: Gerar Porto Prime Windows EXE
 
 on:
   workflow_dispatch:
@@ -49,9 +49,9 @@ jobs:
         shell: pwsh
         run: |
           $expected = @(
-            'dist/ConstruGest-Portable-4.0.0-x64.exe',
-            'dist/ConstruGest-Setup-4.0.0-x64.exe',
-            'dist/ConstruGest-Atualizacao-4.0.0-x64.exe'
+            'dist/PortoPrime-Portable-4.0.0-x64.exe',
+            'dist/PortoPrime-Setup-4.0.0-x64.exe',
+            'dist/PortoPrime-Atualizacao-4.0.0-x64.exe'
           )
           foreach ($file in $expected) {
             if (-not (Test-Path $file)) {
@@ -63,10 +63,10 @@ jobs:
       - name: Disponibilizar EXEs
         uses: actions/upload-artifact@v4
         with:
-          name: ConstruGest-Windows
+          name: PortoPrime-Windows-4.0.0
           path: |
-            dist/ConstruGest-Portable-4.0.0-x64.exe
-            dist/ConstruGest-Setup-4.0.0-x64.exe
-            dist/ConstruGest-Atualizacao-4.0.0-x64.exe
+            dist/PortoPrime-Portable-4.0.0-x64.exe
+            dist/PortoPrime-Setup-4.0.0-x64.exe
+            dist/PortoPrime-Atualizacao-4.0.0-x64.exe
           if-no-files-found: error
           retention-days: 30
