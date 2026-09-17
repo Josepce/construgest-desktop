@@ -9,7 +9,7 @@ function hasDatabase(dir){
   catch(_) { return false; }
 }
 function selectUserDataPath(){
-  // Porto Prime 4.1.0: preserva automaticamente instalações ConstruGest existentes.
+  // Porto Prime 4.1.1: preserva automaticamente instalações ConstruGest existentes.
   const appData=app.getPath('appData');
   const current=app.getPath('userData');
   const legacyPackage=path.join(appData,'construgest-desktop-standalone');

@@ -1,0 +1,11 @@
+PORTO PRIME 4.1.1 — LOGIN COMERCIAL
+
+Atualização visual da tela de login, preservando o licenciamento offline da 4.1.0 e os módulos existentes.
+
+Destaques:
+- identidade Porto Prime mais comercial
+- imagem visual de ERP integrada ao painel esquerdo
+- módulos PDV, Estoque, Financeiro e Relatórios destacados
+- selos Seguro, Funciona offline e Backup automático
+- formulário de login preserva os mesmos IDs e função doLogin(event)
+- PDV e regras de negócio não foram redesenhados
