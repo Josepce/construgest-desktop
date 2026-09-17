@@ -4,12 +4,15 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 let win;
+const singleInstance=app.requestSingleInstanceLock();
+if(!singleInstance)app.quit();
+app.on('second-instance',()=>{if(win&&!win.isDestroyed()){if(win.isMinimized())win.restore();win.focus()}});
 function hasDatabase(dir){
   try { return fs.existsSync(path.join(dir,'database')) && fs.readdirSync(path.join(dir,'database')).length > 0; }
   catch(_) { return false; }
 }
 function selectUserDataPath(){
-  // Porto Prime 4.1.1: preserva automaticamente instalações ConstruGest existentes.
+  // Porto Prime 4.1.2: preserva automaticamente instalações ConstruGest existentes.
   const appData=app.getPath('appData');
   const current=app.getPath('userData');
   const legacyPackage=path.join(appData,'construgest-desktop-standalone');
@@ -45,5 +48,5 @@ function errorHtml(err){
 function createWindow(){if(win&&!win.isDestroyed())return win;win=new BrowserWindow({width:1440,height:900,minWidth:900,minHeight:620,autoHideMenuBar:true,title:'Porto Prime',webPreferences:{contextIsolation:true,nodeIntegration:false}});return win;}
 async function startServer(){const dataDir=path.join(app.getPath('userData'),'database');fs.mkdirSync(dataDir,{recursive:true});process.env.ELECTRON_DATA_DIR=dataDir;process.env.PORTO_PRIME_LICENSE_DIR=app.getPath('userData');process.env.PORTO_PRIME_MACHINE_ID=machineId();process.env.PORT='3210';process.env.HOST='0.0.0.0';process.env.JWT_SECRET=process.env.JWT_SECRET||crypto.randomBytes(32).toString('hex');await import('./src/server.js');}
 async function loadApp(){const w=createWindow();let tries=0;const timer=setInterval(async()=>{tries++;try{await fetch('http://127.0.0.1:3210');clearInterval(timer);w.loadURL('http://127.0.0.1:3210');}catch(e){if(tries>80){clearInterval(timer);writeLog('Servidor não respondeu na porta 3210',e);w.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(errorHtml(e)));}}},250);}
-app.whenReady().then(async()=>{createWindow();try{await startServer();await loadApp();}catch(e){console.error(e);writeLog('Falha na inicialização',e);if(win&&!win.isDestroyed())win.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(errorHtml(e)));else dialog.showErrorBox('Porto Prime - Diagnóstico','Falha na inicialização. Log: '+logPath()+'\n\n'+(e?.message||e));}});
+if(singleInstance)app.whenReady().then(async()=>{createWindow();try{await startServer();await loadApp();}catch(e){console.error(e);writeLog('Falha na inicialização',e);if(win&&!win.isDestroyed())win.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(errorHtml(e)));else dialog.showErrorBox('Porto Prime - Diagnóstico','Falha na inicialização. Log: '+logPath()+'\n\n'+(e?.message||e));}});
 process.on('uncaughtException',e=>writeLog('uncaughtException',e));process.on('unhandledRejection',e=>writeLog('unhandledRejection',e));app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit();});

@@ -1,0 +1,25 @@
+PORTO PRIME 4.1.2 — OTIMIZAÇÃO E ESTABILIDADE
+
+Esta atualização melhora o desempenho geral preservando os módulos, o banco,
+o licenciamento offline e as regras comerciais da versão 4.1.1.
+
+OTIMIZAÇÕES
+- licença validada em cache, evitando leitura e verificação repetidas a cada chamada
+- backup automático iniciado em segundo plano após o servidor ficar disponível
+- cache controlado para imagens e arquivos estáticos da interface
+- índices adicionais para produtos, clientes, fornecedores, vendas, estoque,
+  compras, financeiro, auditoria e relatórios
+- bloqueio de segunda instância do aplicativo para evitar conflitos locais
+- versão dos backups atualizada para 4.1.2, mantendo o mesmo schema compatível
+
+COMPATIBILIDADE E SEGURANÇA
+- appId br.com.construgest.desktop preservado
+- banco existente e seleção automática de instalações anteriores preservados
+- licenças 4.1.0/4.1.1 continuam válidas
+- chave privada não faz parte deste pacote
+- PDV, compras, financeiro, orçamentos e relatórios mantidos
+- nenhuma tabela ou coluna existente é removida
+
+INSTALAÇÃO
+Feche o Porto Prime antes de instalar. O instalador mantém os dados do usuário.
+Mesmo assim, recomenda-se fazer um backup manual antes da atualização.

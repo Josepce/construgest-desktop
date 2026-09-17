@@ -72,3 +72,21 @@ ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS difference NUMERIC(14,2);
 ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS close_note TEXT;
 CREATE INDEX IF NOT EXISTS idx_cash_sessions_opened ON cash_sessions(opened_at);
 CREATE INDEX IF NOT EXISTS idx_cash_movements_session ON cash_movements(session_id);
+
+-- Porto Prime 4.1.2 - índices de desempenho para operação e relatórios
+CREATE INDEX IF NOT EXISTS idx_users_email_lower_active ON users(lower(email),active);
+CREATE INDEX IF NOT EXISTS idx_products_active_name ON products(active,name);
+CREATE INDEX IF NOT EXISTS idx_products_active_stock ON products(active,stock,min_stock);
+CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
+CREATE INDEX IF NOT EXISTS idx_customers_doc ON customers(doc);
+CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);
+CREATE INDEX IF NOT EXISTS idx_sales_status_created ON sales(status,created_at);
+CREATE INDEX IF NOT EXISTS idx_sales_customer ON sales(customer_id,id);
+CREATE INDEX IF NOT EXISTS idx_sales_cash_session ON sales(cash_session_id,status);
+CREATE INDEX IF NOT EXISTS idx_sale_items_product ON sale_items(product_id,sale_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_items_product ON purchase_items(product_id,purchase_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_supplier ON purchases(supplier_id,id);
+CREATE INDEX IF NOT EXISTS idx_stock_product_created ON stock_movements(product_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_fin_status_kind_due ON financial_entries(status,kind,due_date);
+CREATE INDEX IF NOT EXISTS idx_fin_reference ON financial_entries(reference_type,reference_id);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);

@@ -1,7 +1,7 @@
 !include "FileFunc.nsh"
 
 !macro customInit
-  ; Porto Prime 4.1.1 - atualização segura e compatível com ConstruGest.
+  ; Porto Prime 4.1.2 - atualização segura e compatível com ConstruGest.
   ; O appId legado é preservado nesta transição para favorecer o reconhecimento da instalação anterior; a identidade visual passa a Porto Prime.
   ; Antes de substituir os binários, fecha o aplicativo e cria uma cópia física de segurança do PGlite.
   MessageBox MB_OKCANCEL|MB_ICONINFORMATION "Porto Prime - Atualização Segura$\r$\n$\r$\nFeche o Porto Prime/ConstruGest nos outros computadores antes de continuar.$\r$\nA atualização preservará banco de dados, configurações e logomarca.$\r$\nUma cópia de segurança será criada antes da instalação." IDOK +2
