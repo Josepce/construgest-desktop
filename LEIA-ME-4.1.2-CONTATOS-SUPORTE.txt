@@ -1,0 +1,17 @@
+PORTO PRIME 4.1.2 — CONTATOS DE SUPORTE
+
+Atualização visual simples, sem alteração do banco de dados ou das regras de negócio.
+
+Incluído:
+- contato de suporte na tela de login;
+- cartão "Contato e suporte" na aba Configurações;
+- links de e-mail clicáveis;
+- adaptação para telas menores e tema escuro.
+
+Contatos oficiais:
+- portoprime.gc@proton.me
+- portoprime.ce@gmail.com
+
+Validação:
+- 163 funções críticas preservadas;
+- módulos de PDV, Compras, Orçamentos e Financeiro mantidos.
