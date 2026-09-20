@@ -1,0 +1,26 @@
+PORTO PRIME 4.1.3 — DEMONSTRAÇÃO GRATUITA DE 7 DIAS
+
+O que foi incluído
+- Opção para iniciar uma demonstração gratuita diretamente na tela de ativação.
+- Acesso a todos os recursos do Porto Prime durante 7 dias.
+- Indicador de dias restantes na tela de login e nas informações da licença.
+- Bloqueio automático após o término do período de demonstração.
+- Preservação integral dos cadastros e movimentos após o vencimento.
+- Conversão para o Plano Comercial pela chave de licença, sem reinstalar o sistema.
+- Proteção local contra alteração do arquivo da demonstração e retrocesso do relógio.
+
+Como funciona
+1. Na primeira execução, clique em INICIAR DEMONSTRAÇÃO GRATUITA.
+2. Use o Porto Prime normalmente durante 7 dias.
+3. Ao fim do período, o sistema exibirá a tela de ativação.
+4. Adquira o Plano Comercial e cole a chave recebida.
+5. O sistema volta a funcionar com todos os dados já cadastrados.
+
+Contatos comerciais
+- portoprime.gc@proton.me
+- portoprime.ce@gmail.com
+
+Observação técnica
+O controle é offline e vinculado ao computador. A proteção reduz reinícios casuais
+da demonstração; como todo controle exclusivamente local, não substitui uma validação
+online quando for necessária proteção comercial mais rigorosa.

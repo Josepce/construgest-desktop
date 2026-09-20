@@ -1,6 +1,6 @@
 {
   "name": "construgest-desktop-standalone",
-  "version": "4.1.2",
+  "version": "4.1.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,8 +12,9 @@
     "build:setup": "electron-builder --win nsis --x64",
     "build:all": "electron-builder --win portable nsis --x64",
     "check:critical": "node scripts/check-critical-functions.cjs",
+    "check:trial": "node scripts/check-trial-license.cjs",
     "build:update": "electron-builder --win nsis --x64 --config electron-builder-update.yml",
-    "build:release": "npm run check:critical && npm run build:portable && npm run build:setup && npm run build:update"
+    "build:release": "npm run check:critical && npm run check:trial && npm run build:portable && npm run build:setup && npm run build:update"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
