@@ -23,12 +23,14 @@ jobs:
       - name: Instalar dependencias
         run: npm install --no-audit --no-fund
 
-      - name: Verificar sintaxe e 163 funcoes criticas
+      - name: Verificar sintaxe, funcoes criticas e demonstracao
         run: |
           node --check src/server.js
+          node --check src/trial-license.js
           node --check electron-main.cjs
           node --check public/app.js
           node scripts/check-critical-functions.cjs
+          node scripts/check-trial-license.cjs
 
       - name: Gerar EXE portatil
         run: npx electron-builder --win portable --x64
@@ -48,10 +50,11 @@ jobs:
       - name: Conferir os tres EXEs
         shell: pwsh
         run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           $expected = @(
-            'dist/PortoPrime-Portable-4.1.3-x64.exe',
-            'dist/PortoPrime-Setup-4.1.3-x64.exe',
-            'dist/PortoPrime-Atualizacao-4.1.3-x64.exe'
+            "dist/PortoPrime-Portable-$version-x64.exe",
+            "dist/PortoPrime-Setup-$version-x64.exe",
+            "dist/PortoPrime-Atualizacao-$version-x64.exe"
           )
           foreach ($file in $expected) {
             if (-not (Test-Path $file)) {
@@ -63,10 +66,10 @@ jobs:
       - name: Disponibilizar EXEs
         uses: actions/upload-artifact@v4
         with:
-          name: PortoPrime-Windows-4.1.3
+          name: PortoPrime-Windows
           path: |
-            dist/PortoPrime-Portable-4.1.3-x64.exe
-            dist/PortoPrime-Setup-4.1.3-x64.exe
-            dist/PortoPrime-Atualizacao-4.1.2-x64.exe
+            dist/PortoPrime-Portable-*-x64.exe
+            dist/PortoPrime-Setup-*-x64.exe
+            dist/PortoPrime-Atualizacao-*-x64.exe
           if-no-files-found: error
           retention-days: 30
