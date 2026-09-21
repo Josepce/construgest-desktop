@@ -90,3 +90,7 @@ CREATE INDEX IF NOT EXISTS idx_stock_product_created ON stock_movements(product_
 CREATE INDEX IF NOT EXISTS idx_fin_status_kind_due ON financial_entries(status,kind,due_date);
 CREATE INDEX IF NOT EXISTS idx_fin_reference ON financial_entries(reference_type,reference_id);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
+
+-- 4.1.4: sequência persistente dos códigos automáticos, sem alterar produtos existentes.
+CREATE TABLE IF NOT EXISTS product_code_counter(id INTEGER PRIMARY KEY CHECK(id=1),last_value NUMERIC NOT NULL DEFAULT 0);
+INSERT INTO product_code_counter(id,last_value) VALUES(1,0) ON CONFLICT(id) DO NOTHING;

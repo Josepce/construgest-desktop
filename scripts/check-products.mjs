@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {PGlite} from '@electric-sql/pglite';
+import {nextProductCode} from '../src/product-codes.js';
+const db=new PGlite();
+await db.exec(`CREATE TABLE products(code TEXT UNIQUE NOT NULL,active BOOLEAN DEFAULT TRUE);CREATE TABLE product_code_counter(id INTEGER PRIMARY KEY,last_value NUMERIC NOT NULL);INSERT INTO product_code_counter VALUES(1,0)`);
+const create=()=>db.transaction(async c=>{const code=await nextProductCode(c,true);await c.query('INSERT INTO products(code) VALUES($1)',[code]);return code});
+assert.equal(await nextProductCode(db),'001');
+assert.equal(await create(),'001');assert.equal(await create(),'002');
+await db.exec("INSERT INTO products(code,active) VALUES('099',false),('SKU-200',true)");
+assert.equal(await create(),'100');
+const codes=await Promise.all(Array.from({length:10},create));
+assert.equal(new Set(codes).size,10);assert.equal(await nextProductCode(db),'111');
+await assert.rejects(db.transaction(async c=>{await nextProductCode(c,true);throw Error('cancelled')}));
+assert.equal(await nextProductCode(db),'111');
+await db.exec("INSERT INTO products(code) VALUES('999')");assert.equal(await create(),'1000');
+await db.close();console.log('OK: códigos sequenciais, inativos, alfanuméricos, concorrência, rollback e passagem de 999 para 1000.');

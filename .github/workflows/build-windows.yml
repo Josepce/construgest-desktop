@@ -1,6 +1,9 @@
 name: Gerar Porto Prime Windows EXE
 
 on:
+  push:
+    branches: [main]
+    paths: ['package.json']
   workflow_dispatch:
 
 permissions:
@@ -31,6 +34,7 @@ jobs:
           node --check public/app.js
           node scripts/check-critical-functions.cjs
           node scripts/check-trial-license.cjs
+          node scripts/check-products.mjs
 
       - name: Gerar EXE portatil
         run: npx electron-builder --win portable --x64
@@ -57,9 +61,7 @@ jobs:
             "dist/PortoPrime-Atualizacao-$version-x64.exe"
           )
           foreach ($file in $expected) {
-            if (-not (Test-Path $file)) {
-              throw "Arquivo esperado nao foi gerado: $file"
-            }
+            if (-not (Test-Path $file)) { throw "Arquivo esperado nao foi gerado: $file" }
             Write-Host "OK: $file"
           }
 

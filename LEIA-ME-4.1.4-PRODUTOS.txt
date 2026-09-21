@@ -1,0 +1,37 @@
+PORTO PRIME 4.1.4 — PRODUTOS E TABELA DE PREÇOS
+
+NOVIDADES
+1. Produtos > Tabela de preços: seleção entre varejo e atacado,
+   com preço promocional ao lado em ambas as opções.
+   Busca por nome, código, EAN e categoria; impressão e opção de salvar PDF
+   quando disponível no diálogo de impressão do computador.
+   Promoções indicam situação (ativa, agendada, encerrada) e período.
+2. Código automático: gerado ao salvar, com pelo menos três dígitos.
+   Exemplo: 001, 002, 003. Após 999, segue 1000 normalmente.
+   A sequência continua acima dos códigos numéricos existentes, incluindo
+   produtos inativos. Códigos antigos e importados são preservados.
+   O número mostrado no formulário é uma prévia e pode mudar se outro
+   usuário cadastrar um produto antes de você salvar.
+3. Categoria: escolha uma categoria existente na lista ou use
+   '+ Nova categoria'. Ela fica disponível depois que o produto é salvo.
+
+COMO GERAR OS EXECUTÁVEIS
+Este ZIP contém o PROJETO-FONTE COMPLETO. Não contém um EXE já compilado.
+Base utilizada: versão 4.1.3 conferida no repositório oficial.
+
+1. Extraia o ZIP em uma pasta.
+2. No repositório, atualize os arquivos mantendo a estrutura das pastas,
+   incluindo .github/workflows/build-windows.yml. Não envie o ZIP como
+   se fosse o código do projeto. package.json deve ficar na raiz.
+3. Em GitHub > Actions > Gerar Porto Prime Windows EXE > Run workflow.
+4. Após concluir em verde, baixe PortoPrime-Windows nos artefatos.
+5. Para uma instalação existente, use PortoPrime-Atualizacao-4.1.4-x64.exe.
+   Faça um backup pelo sistema e feche o Porto Prime antes da instalação.
+
+Também é possível compilar em um computador Windows com Node.js:
+npm install
+npm run build:release
+
+Não copie bancos de dados, licenças ou chaves privadas para o repositório.
+O pacote contém somente código e recursos do aplicativo.
+Não altera as regras de venda, estoque, licença ou demonstração.
