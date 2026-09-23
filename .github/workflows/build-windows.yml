@@ -75,5 +75,5 @@ jobs:
             dist/PortoPrime-Setup-*-x64.exe
             dist/PortoPrime-Atualizacao-*-x64.exe
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
 
