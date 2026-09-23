@@ -35,6 +35,7 @@ jobs:
           node scripts/check-critical-functions.cjs
           node scripts/check-trial-license.cjs
           node scripts/check-products.mjs
+          node scripts/check-quote-search.cjs
 
       - name: Gerar EXE portatil
         run: npx electron-builder --win portable --x64
@@ -75,3 +76,4 @@ jobs:
             dist/PortoPrime-Atualizacao-*-x64.exe
           if-no-files-found: error
           retention-days: 30
+
