@@ -344,7 +344,7 @@ async function novoOrcamento(){
   setTimeout(()=>{let v=document.getElementById('qValid');if(v&&!v.value)v.value=iso(valid);fillQuoteProductPrice();updateQuoteTotals()},0);
   return `<div class="quote-page"><div class="quote-heading"><div class=quote-brand>${cfg.company?.logo_data?`<img class=quote-company-logo src="${cfg.company.logo_data}" alt="Logo">`:''}<div><span class=eyebrow>ORÇAMENTOS</span><h2>▤ Novo Orçamento</h2><p>Cadastre os produtos e gere um orçamento para seu cliente.</p></div></div><button class=secondary onclick="render('orcamentos-salvos')">▥ Orçamentos Salvos</button></div>
   <div class="quote-panel"><div class="quote-customer-grid"><div class="field span2"><label>Cliente</label><select id=qCustomer onchange=fillQuoteCustomer()><option value="">Consumidor Final</option>${c.map(x=>`<option value=${x.id}>${esc(x.name)}</option>`).join('')}</select></div><div class=field><label>CPF/CNPJ</label><input id=qDoc readonly placeholder="000.000.000-00"></div><div class=field><label>Telefone</label><input id=qPhone readonly placeholder="(00) 00000-0000"></div><div class=field><label>Data do Orçamento</label><input type=date value="${iso(today)}" readonly></div><div class=field><label>Validade</label><input id=qValid type=date></div><div class=field><label>Vendedor</label><input value="${esc(me.name)}" readonly></div></div>
-  <div class=quote-add><div class="field quote-product"><label for=qProductSearch>Buscar produto</label><input id=qProductSearch type=search autocomplete=off placeholder="Digite nome, código ou EAN..." oninput="filterQuoteProducts()" onkeydown="quoteSearchKey(event)" aria-describedby=qProductSearchHint><select id=qProduct aria-label="Produto do orçamento" onchange="fillQuoteProductPrice()"><option value="">Selecione um produto</option>${p.map(x=>`<option value=${x.id}>${esc(x.code)} — ${esc(x.name)}</option>`).join('')}</select><small id=qProductSearchHint class=muted role=status aria-live=polite>Digite para filtrar os produtos.</small></div><div class=field><label>Quantidade</label><input id=qQty type=number min=.001 step=.001 value=1></div><div class=field><label>Preço Unit. (R$)</label><input id=qPrice type=number min=0 step=.01 placeholder="Automático"></div><div class=field><label>Desconto (%)</label><input id=qItemDiscount type=number min=0 max=100 step=.01 value=0></div><button class=primary onclick=addQuoteItemPro()>▣ Adicionar</button></div>
+  <div class=quote-add><div class="field quote-product"><label for=qProductSearch>Buscar produto</label><div class="quote-product-picker"><input id=qProductSearch type=search autocomplete=off placeholder="Digite nome, código ou EAN..." oninput="filterQuoteProducts()" onkeydown="quoteSearchKey(event)" onfocus="filterQuoteProducts(true)" onblur="setTimeout(hideQuoteProductSuggestions,150)" aria-describedby=qProductSearchHint><input id=qProduct type=hidden aria-hidden=true><div id=qProductSuggestions class="quote-product-suggestions"></div></div><small id=qProductSearchHint class=muted role=status aria-live=polite>Digite para buscar e selecione o produto no próprio campo.</small></div><div class=field><label>Quantidade</label><input id=qQty type=number min=.001 step=.001 value=1></div><div class=field><label>Preço Unit. (R$)</label><input id=qPrice type=number min=0 step=.01 placeholder="Automático"></div><div class=field><label>Desconto (%)</label><input id=qItemDiscount type=number min=0 max=100 step=.01 value=0></div><button class=primary onclick=addQuoteItemPro()>▣ Adicionar</button></div>
   <div id=qCart>${quoteCartProHtml()}</div>
   <div class=quote-bottom><div class=field><label>Observações</label><textarea id=qNotes rows=6 placeholder="Digite observações sobre este orçamento..."></textarea></div><div class=quote-totals><h3>Totais do Orçamento</h3><div><span>Total de Itens:</span><b id=qTotalItems>0</b></div><div><span>Total Bruto:</span><b id=qGross>${money(0)}</b></div><div><span>Desconto Total:</span><b id=qDiscountTotal>${money(0)}</b></div><div class=quote-grand><span>TOTAL:</span><strong id=qGrand>${money(0)}</strong></div></div></div>
   <div class=quote-footer><button onclick=clearQuote()>↻ Limpar</button><div><button class=primary onclick="saveQuotePro(false)">▣ Salvar Orçamento</button> <button class=secondary onclick="saveQuotePro(true)">▣ Salvar e Imprimir</button></div></div></div></div>`
@@ -358,22 +358,29 @@ function findQuoteProducts(products,query){
   const exact=matches.filter(p=>term&&[p.code,p.ean].some(v=>quoteSearchText(v)===term));
   return {matches:exact.concat(matches.filter(p=>!exact.includes(p))),selected:exact.length===1?exact[0]:(matches.length===1?matches[0]:null)};
 }
-function filterQuoteProducts(){
-  const input=document.getElementById('qProductSearch'),select=document.getElementById('qProduct');
-  if(!input||!select)return;
+function filterQuoteProducts(forceOpen=false){
+  const input=document.getElementById('qProductSearch'),hidden=document.getElementById('qProduct'),box=document.getElementById('qProductSuggestions');
+  if(!input||!hidden||!box)return;
   const result=findQuoteProducts(window._quoteProducts||[],input.value);
-  select.innerHTML=`<option value="">${result.matches.length?'Selecione um produto':'Nenhum produto encontrado'}</option>`+result.matches.map(p=>`<option value="${esc(p.id)}">${esc(p.code)} — ${esc(p.name)}</option>`).join('');
-  select.disabled=!result.matches.length;
-  select.value=result.selected?String(result.selected.id):'';
-  document.getElementById('qProductSearchHint').textContent=result.matches.length?result.matches.length+' produto(s) encontrado(s). Escolha na lista abaixo.':'Nenhum produto encontrado. Tente outro nome ou código.';
+  hidden.value=result.selected?String(result.selected.id):'';
+  box.innerHTML=result.matches.map(p=>`<button type="button" class="quote-product-option" onclick="selectQuoteProduct(${p.id})"><span><b>${esc(p.code)} — ${esc(p.name)}</b><small>${esc(p.category||'Produto')}${p.brand?' • '+esc(p.brand):''} • Estoque: ${num(p.stock)} ${esc(p.unit||'UN')}</small></span><strong>${money(p.retail||0)}</strong></button>`).join('')||`<div class="quote-product-empty">${input.value.trim()?'Nenhum produto encontrado.':'Digite nome, código ou EAN.'}</div>`;
+  box.style.display=(forceOpen||document.activeElement===input)&&result.matches.length?'block':'none';
+  document.getElementById('qProductSearchHint').textContent=result.matches.length?result.matches.length+' produto(s) encontrado(s). Selecione no próprio campo.':'Nenhum produto encontrado. Tente outro nome ou código.';
   fillQuoteProductPrice();
 }
+function selectQuoteProduct(id){
+  const p=(window._quoteProducts||[]).find(x=>x.id===+id),input=document.getElementById('qProductSearch'),hidden=document.getElementById('qProduct');
+  if(!p||!input||!hidden)return;
+  hidden.value=String(p.id);input.value=`${p.code} — ${p.name}`;hideQuoteProductSuggestions();fillQuoteProductPrice();document.getElementById('qQty')?.focus();
+}
+function hideQuoteProductSuggestions(){const box=document.getElementById('qProductSuggestions');if(box)box.style.display='none'}
 function quoteSearchKey(event){
   if(event.key!=='Enter')return;
   event.preventDefault();
-  const select=document.getElementById('qProduct');
-  if(select?.value){document.getElementById('qQty')?.focus();document.getElementById('qQty')?.select()}
-  else if(select&&!select.disabled)select.focus();
+  const input=document.getElementById('qProductSearch'),hidden=document.getElementById('qProduct');
+  if(hidden?.value){document.getElementById('qQty')?.focus();document.getElementById('qQty')?.select();return}
+  const result=findQuoteProducts(window._quoteProducts||[],input?.value||'');
+  if(result.matches.length)selectQuoteProduct(result.matches[0].id);
 }
 
 function fillQuoteProductPrice(){let p=_quoteProducts?.find(x=>x.id===+document.getElementById('qProduct')?.value),e=document.getElementById('qPrice');if(e)e.value=p?Number(p.retail||0).toFixed(2):''}
