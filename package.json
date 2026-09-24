@@ -1,6 +1,6 @@
 {
   "name": "construgest-desktop-standalone",
-  "version": "4.1.5",
+  "version": "4.1.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -69,4 +69,4 @@
   },
   "description": "Porto Prime - Sistema de Gestão Comercial desktop standalone",
   "author": "Porto Prime"
-}  
+}
