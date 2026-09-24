@@ -101,9 +101,9 @@ async function pdvFieldEnter(event,stage){
     setSelectedPdvQty(qty);pdvFocusNext('pdvSelectedUnit');return;
   }
   if(stage==='unit'){
-    if(await requestPdvPriceChange(event.currentTarget.value))pdvFocusNext('pdvCustomer');return;
+    if(await requestPdvPriceChange(event.currentTarget.value))pdvFocusNext('pdvDiscountMode');return;
   }
-  if(stage==='customer')return pdvFocusNext('pdvDiscountMode');
+  if(stage==='customer')return pdvFocusNext('pdvSearch');
   if(stage==='mode')return pdvFocusNext('pdvDiscount');
   if(stage==='discount'){
     if(await requestPdvDiscount(event.currentTarget.value))pdvFocusNext('pdvPaymentMethod');return;
@@ -176,10 +176,22 @@ async function pdv(){
       <div class="pdv-brand">${cfg.company?.logo_data&&cfg.company?.show_logo_pdv!==false?`<img class=pdv-company-logo src="${cfg.company.logo_data}" alt="Logo">`:''}<div><b>Porto Prime</b><small>PDV • PONTO DE VENDA</small></div></div>
       <div class="legacy-operator">Operador: <b>${esc(me.name)}</b><br><small>${new Date().toLocaleString('pt-BR')}</small><br><button class="pdv-counter-toggle" onclick="toggleCounterMode()">▣ Modo Balcão</button></div>
     </div>
+    <div class="legacy-shortcuts-top" role="toolbar" aria-label="Atalhos do PDV">
+      <button type="button" title="F2 • Buscar produto" aria-label="F2 Buscar produto" onclick="pdvFocusNext('pdvSearch')"><span aria-hidden="true"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></span><b>F2</b><small>Buscar</small></button>
+      <button type="button" title="F3 • Cliente" aria-label="F3 Selecionar cliente" onclick="pdvFocusNext('pdvCustomer')"><span aria-hidden="true"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="8" r="3.5"/><path d="M4 21c.5-4 3.1-6 8-6s7.5 2 8 6"/></svg></span><b>F3</b><small>Cliente</small></button>
+      <button type="button" title="F4 • Remover item" aria-label="F4 Remover item" onclick="removePdvSelected()"><span aria-hidden="true">×</span><b>F4</b><small>Remover</small></button>
+      <button type="button" title="F5 • Desconto" aria-label="F5 Informar desconto" onclick="pdvFocusNext('pdvDiscount')"><span aria-hidden="true">%</span><b>F5</b><small>Desconto</small></button>
+      <button type="button" title="F6 • Quantidade" aria-label="F6 Alterar quantidade" onclick="focusPdvQty()"><span aria-hidden="true">±</span><b>F6</b><small>Quantidade</small></button>
+      <button type="button" title="F7 • Recuperar venda" aria-label="F7 Recuperar venda" onclick="showSuspendedSales()"><span aria-hidden="true">↶</span><b>F7</b><small>Recuperar</small></button>
+      <button type="button" title="F8 • Pagamento" aria-label="F8 Pagamento" onclick="openPdvPaymentModal()"><span aria-hidden="true">▣</span><b>F8</b><small>Pagamento</small></button>
+      <button type="button" title="F9 • Suspender venda" aria-label="F9 Suspender venda" onclick="suspendCurrentSale()"><span aria-hidden="true">Ⅱ</span><b>F9</b><small>Suspender</small></button>
+      <button type="button" title="F10 • Calculadora" aria-label="F10 Calculadora" onclick="openMaterialCalculator()"><span aria-hidden="true">▦</span><b>F10</b><small>Calculadora</small></button>
+      <button type="button" title="F12 • Finalizar venda" aria-label="F12 Finalizar venda" onclick="finishSale()"><span aria-hidden="true">✓</span><b>F12</b><small>Finalizar</small></button>
+    </div>
+    <div class="pdv-customer-top"><label for="pdvCustomer">Cliente</label><select id="pdvCustomer" onkeydown="pdvFieldEnter(event,'customer')"><option value="">Consumidor Final</option>${customerOptions}</select><small>Enter avança para a busca de produtos.</small></div>
     <div class="legacy-searchbar">
       <label>Digite o código, EAN ou nome do produto</label>
       <input id="pdvSearch" autocomplete="off" placeholder="Código do produto..." oninput="pdvLookup(this.value)" onkeydown="pdvSearchKey(event)" role=combobox aria-controls=pdvResults aria-expanded=false>
-      <div class="legacy-shortcuts-top"><span>↑ ↓ navegar • Enter selecionar</span><span>F2 Buscar</span><span>F3 Cliente</span><span>F4 Remover</span><span>F5 Desconto</span><span>F6 Quantidade</span><span>F7 Recuperar</span><span>F8 Pagamento</span><span>F9 Suspender</span><span>F10 Calculadora</span><span>F12 Finalizar</span></div>
       <div id="pdvResults" class="pdv-results"></div>
     </div>
     <div class="legacy-main">
@@ -193,7 +205,6 @@ async function pdv(){
         </div>
       </div>
     <div class="legacy-client-row">
-      <label>Cliente <select id="pdvCustomer" onkeydown="pdvFieldEnter(event,'customer')"><option value="">Consumidor Final</option>${customerOptions}</select></label>
       <label>Tipo de desconto <select id="pdvDiscountMode" onchange="pdvDiscountModeChanged()" onkeydown="pdvFieldEnter(event,'mode')"><option value="PERCENT" ${pdvDiscountMode==='PERCENT'?'selected':''}>% Porcentagem</option><option value="AMOUNT" ${pdvDiscountMode==='AMOUNT'?'selected':''}>R$ Dinheiro</option></select></label>
       <label>Valor do desconto <input id="pdvDiscount" type="number" min="0" ${pdvDiscountMode==='PERCENT'?'max="100"':''} step=".01" value="${pdvDiscountValue}" oninput="pdvDiscountPreview()" onchange="requestPdvDiscount(this.value)" onkeydown="pdvFieldEnter(event,'discount')" title="Desconto exige autorização de Administrador/Gerente."></label>
       <div class="pdv-discount-info"><small>Desconto</small><b id="pdvDiscountAmount">${money(0)}</b></div>
@@ -220,7 +231,7 @@ async function pdv(){
     </div>
     </div>
     <div class="legacy-cash open"><span>▣</span><b>CAIXA ABERTO</b><strong>${esc(cash.operator||me.name)}</strong></div>
-    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span id="pdvNetworkStatus">● Servidor conectado</span><span>Porto Prime 4.1.9</span></div>
+    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span id="pdvNetworkStatus">● Servidor conectado</span><span>Porto Prime 4.1.10</span></div>
   </div>`
 }
 function installPdvShortcuts(){
@@ -640,7 +651,7 @@ async function configuracoes(){
  <div class=panel><h3>🏢 Dados da empresa</h3><div class=formgrid><div class=span2><label>Nome fantasia</label><input id=cfgTrade value="${esc(c.trade_name||'')}"></div><div class=span2><label>Razão social</label><input id=cfgLegal value="${esc(c.legal_name||'')}"></div><div><label>CNPJ / CPF</label><input id=cfgDoc value="${esc(c.doc||'')}"></div><div><label>Inscrição Estadual</label><input id=cfgIe value="${esc(c.ie||'')}"></div><div><label>Telefone</label><input id=cfgPhone value="${esc(c.phone||'')}"></div><div><label>WhatsApp</label><input id=cfgWhatsapp value="${esc(c.whatsapp||'')}"></div><div class=span2><label>E-mail</label><input id=cfgEmail value="${esc(c.email||'')}"></div><div class=span2><label>Endereço</label><input id=cfgAddress value="${esc(c.address||'')}"></div><div><label>Cidade</label><input id=cfgCity value="${esc(c.city||'')}"></div><div><label>UF</label><input id=cfgUf maxlength=2 value="${esc(c.uf||'')}"></div></div><div class=company-logo-config><div class=company-logo-preview id=cfgLogoPreview>${c.logo_data?`<img src="${c.logo_data}" alt="Logomarca">`:'<span>Sem logomarca</span>'}</div><div><b>Logomarca da empresa</b><small>PNG ou JPG • recomendado até 500 KB</small><input id=cfgLogoFile type=file accept="image/png,image/jpeg" style="display:none" onchange=chooseCompanyLogo(this)><button class=secondary onclick="cfgLogoFile.click()">Selecionar imagem</button> <button onclick=removeCompanyLogo()>Remover logo</button><label class=checkline><input id=cfgShowLogoPdv type=checkbox ${c.show_logo_pdv!==false?'checked':''}> Exibir logomarca no PDV</label></div></div></div>
  <div class=panel><h3>🧾 Vendas e PDV</h3><label>Desconto máximo para gerente (%)</label><input id=cfgDiscount type=number min=0 max=100 step=.1 value="${v.max_discount??10}"><label>Mensagem no comprovante</label><textarea id=cfgReceipt rows=3>${esc(v.receipt_message||'Obrigado pela preferência!')}</textarea><label>Mensagem no rodapé do orçamento</label><textarea id=cfgQuoteMsg rows=3>${esc(v.quote_message||'Orçamento sujeito à disponibilidade de estoque e validade informada.')}</textarea><label class=checkline><input id=cfgRequireCash type=checkbox ${v.require_open_cash!==false?'checked':''}> Exigir caixa aberto para realizar vendas</label><label class=checkline><input id=cfgPrint type=checkbox ${v.auto_print?'checked':''}> Imprimir comprovante automaticamente</label></div>
  <div class=panel><h3>📦 Estoque</h3><label>Estoque mínimo padrão</label><input id=cfgMinStock type=number min=0 step=.001 value="${st.default_min??0}"><label class=checkline><input id=cfgNegative type=checkbox ${st.allow_negative?'checked':''}> Permitir estoque negativo</label><label class=checkline><input id=cfgLowAlert type=checkbox ${st.low_stock_alert!==false?'checked':''}> Exibir alertas de estoque baixo</label><div class="alert yellow">Na 2.5 esta regra é aplicada diretamente pelo PDV.</div></div>
- <div class=panel><h3>🖥️ Sistema e segurança</h3><label>Tema</label><select id=cfgTheme><option value=light ${sy.theme!=='dark'?'selected':''}>Claro</option><option value=dark ${sy.theme==='dark'?'selected':''}>Escuro</option></select><label>Nome exibido do sistema</label><input id=cfgSystemName value="${esc(sy.name||'Porto Prime')}"><div class=alert green><b>Porto Prime 4.1.9</b><br>Banco central local, funcionamento offline e acesso em rede local.</div><button class=secondary onclick="showNetworkInfo()">🌐 Ver acesso em rede</button> <button onclick="showLicenseInfo()">🔐 Ver licença</button> <button onclick="render('relatorios')">Abrir Backup e Restauração</button></div>
+ <div class=panel><h3>🖥️ Sistema e segurança</h3><label>Tema</label><select id=cfgTheme><option value=light ${sy.theme!=='dark'?'selected':''}>Claro</option><option value=dark ${sy.theme==='dark'?'selected':''}>Escuro</option></select><label>Nome exibido do sistema</label><input id=cfgSystemName value="${esc(sy.name||'Porto Prime')}"><div class=alert green><b>Porto Prime 4.1.10</b><br>Banco central local, funcionamento offline e acesso em rede local.</div><button class=secondary onclick="showNetworkInfo()">🌐 Ver acesso em rede</button> <button onclick="showLicenseInfo()">🔐 Ver licença</button> <button onclick="render('relatorios')">Abrir Backup e Restauração</button></div>
  <div class="panel porto-support-settings"><h3>✉ Contato e suporte</h3><p class=muted>Fale com a equipe Porto Prime para suporte, dúvidas ou informações comerciais.</p><div class=porto-support-links><a href="mailto:portoprime.gc@proton.me"><span>Contato principal</span><b>portoprime.gc@proton.me</b></a><a href="mailto:portoprime.ce@gmail.com"><span>Contato alternativo</span><b>portoprime.ce@gmail.com</b></a></div></div>
  </div>`
 }
@@ -659,7 +670,7 @@ async function saveSettings(){
 function modal(html){document.body.insertAdjacentHTML('beforeend',`<div class=modalbox id=modal><div class=modalinner>${html}</div></div>`)}function closeModal(){document.getElementById('modal')?.remove()}
 licenseStatus().then(ok=>{if(ok&&token)start().catch(()=>logout())}).catch(e=>showActivation({error:'Não foi possível verificar a licença: '+e.message}));
 
-// Porto Prime 4.1.9 — tabela de preços do catálogo.
+// Porto Prime 4.1.10 — tabela de preços do catálogo.
 let priceTableProducts=[],priceTableMode='retail';
 function pricePromotion(p,today=new Date().toISOString().slice(0,10)){
   if(!(+p.promo>0))return {label:'Sem promoção',active:false};

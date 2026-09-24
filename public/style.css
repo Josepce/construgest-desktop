@@ -318,3 +318,24 @@ main{min-width:0}header{min-height:82px;background:#ffffffdd;backdrop-filter:blu
   .legacy-pdv .legacy-subtotal{grid-column:1/-1}
   .legacy-pdv .legacy-paybox{width:100%}
 }
+
+/* Porto Prime 4.1.10 — Atalhos compactos e cliente antes da busca */
+.legacy-pdv>.legacy-shortcuts-top{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px;width:100%;min-width:0;padding:10px 12px;background:#194486;border-radius:12px}
+.legacy-pdv>.legacy-shortcuts-top button{min-width:0;height:58px;display:grid;grid-template-columns:25px 1fr;grid-template-rows:19px 20px;align-content:center;gap:1px 5px;padding:6px 7px;border:1px solid #ffffff58;border-radius:8px;background:#ffffff13;color:#fff;text-align:left;cursor:pointer}
+.legacy-pdv>.legacy-shortcuts-top button:hover,.legacy-pdv>.legacy-shortcuts-top button:focus-visible{background:#ffffff2a}
+.legacy-pdv>.legacy-shortcuts-top button span{grid-row:1/3;align-self:center;font-size:22px;line-height:1;text-align:center}
+.legacy-pdv>.legacy-shortcuts-top button b{font-size:11px;line-height:1}.legacy-pdv>.legacy-shortcuts-top button small{font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.legacy-pdv>.pdv-customer-top{display:flex;flex-direction:column;gap:4px;padding:12px 15px;background:#fff;border:1px solid #d3e1f2;border-radius:11px}
+.legacy-pdv>.pdv-customer-top label{font-size:12px;font-weight:850;color:#3d5d87}
+.legacy-pdv>.pdv-customer-top select{height:47px;width:100%;border-radius:8px;font-size:16px;font-weight:750}
+.legacy-pdv>.pdv-customer-top small{color:#647c9b;font-size:11px}
+@media(min-width:1251px){
+  .legacy-pdv .legacy-main{grid-template-columns:120px 140px 180px minmax(150px,1fr) 160px minmax(120px,1fr)}
+  .legacy-pdv .legacy-items{grid-column:1/5}
+  .legacy-pdv .legacy-actions,.legacy-pdv .legacy-paybox{grid-column:5/-1}
+}
+@media(max-width:1150px){.legacy-pdv>.legacy-shortcuts-top{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(max-width:700px){.legacy-pdv>.legacy-shortcuts-top{grid-template-columns:repeat(3,minmax(0,1fr))}.legacy-pdv>.legacy-shortcuts-top button{height:50px}}
+.dark-ui .legacy-pdv>.pdv-customer-top{background:#172033;border-color:#344054}.dark-ui .legacy-pdv>.pdv-customer-top label{color:#cbd5e1}
+.legacy-pdv>.legacy-shortcuts-top button span{display:flex;align-items:center;justify-content:center}
+.legacy-pdv>.legacy-shortcuts-top button svg{display:block}
