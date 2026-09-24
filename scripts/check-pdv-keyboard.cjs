@@ -30,7 +30,11 @@ async function key(stage,value){if(value!=null)nodes[{qty:'pdvQty',unit:'pdvSele
  vm.runInContext("me={name:'Administrador',role:'Administrador'}",context);context.window._pdvKeysInstalled=true;
  const html=await context.pdv();
  assert(html.indexOf('id="pdvQty"')<html.indexOf('id="pdvSelectedUnit"'));
+ assert(html.indexOf('class="legacy-shortcuts-top"')<html.indexOf('id="pdvCustomer"'));
  assert(html.indexOf('id="pdvCustomer"')<html.indexOf('id="pdvSearch"'));
+ const styles=fs.readFileSync('public/style.css','utf8');
+ assert.match(styles,/\.legacy-pdv>\.legacy-shortcuts-top,\.legacy-pdv>\.pdv-customer-top\{order:-98!important\}/);
+ assert.match(fs.readFileSync('public/pdv-322.css','utf8'),/\.legacy-searchbar\{order:-98!important\}/);
  assert(html.indexOf('id="pdvSearch"')<html.indexOf('id="pdvQty"'));
  assert(html.indexOf('id="pdvSelectedUnit"')<html.indexOf('id="pdvDiscountMode"'));
  assert(html.indexOf('id="pdvDiscountMode"')<html.indexOf('id="pdvDiscount"'));
