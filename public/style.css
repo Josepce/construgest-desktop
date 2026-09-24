@@ -339,3 +339,6 @@ main{min-width:0}header{min-height:82px;background:#ffffffdd;backdrop-filter:blu
 .dark-ui .legacy-pdv>.pdv-customer-top{background:#172033;border-color:#344054}.dark-ui .legacy-pdv>.pdv-customer-top label{color:#cbd5e1}
 .legacy-pdv>.legacy-shortcuts-top button span{display:flex;align-items:center;justify-content:center}
 .legacy-pdv>.legacy-shortcuts-top button svg{display:block}
+
+/* Porto Prime 4.1.11 — manter atalhos e cliente antes da busca no layout flex do PDV. */
+.legacy-pdv>.legacy-shortcuts-top,.legacy-pdv>.pdv-customer-top{order:-98!important}
