@@ -35,6 +35,12 @@ async function key(stage,value){if(value!=null)nodes[{qty:'pdvQty',unit:'pdvSele
  const styles=fs.readFileSync('public/style.css','utf8');
  assert.match(styles,/\.legacy-pdv>\.legacy-shortcuts-top,\.legacy-pdv>\.pdv-customer-top\{order:-98!important\}/);
  assert.match(fs.readFileSync('public/pdv-322.css','utf8'),/\.legacy-searchbar\{order:-98!important\}/);
+ const page=fs.readFileSync('public/index.html','utf8');
+ assert(page.includes('style.css?v=4.1.12'));
+ assert(page.includes('pdv-4112.css?v=4.1.12'));
+ const pdvOverride=fs.readFileSync('public/pdv-4112.css','utf8');
+ assert.match(pdvOverride,/\.legacy-pdv>\.legacy-shortcuts-top,\s*\.legacy-pdv>\.pdv-customer-top\{order:-98!important\}/);
+ assert.match(pdvOverride,/\.legacy-pdv>\.legacy-shortcuts-top button\{/);
  assert(html.indexOf('id="pdvSearch"')<html.indexOf('id="pdvQty"'));
  assert(html.indexOf('id="pdvSelectedUnit"')<html.indexOf('id="pdvDiscountMode"'));
  assert(html.indexOf('id="pdvDiscountMode"')<html.indexOf('id="pdvDiscount"'));
