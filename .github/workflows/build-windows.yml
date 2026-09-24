@@ -36,6 +36,20 @@ jobs:
           node-version: '22'
           package-manager-cache: false
 
+      - name: Descobrir cache do npm
+        id: npm-cache-dir
+        shell: pwsh
+        run: |
+          "dir=$(npm config get cache)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Restaurar cache do npm
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
+          key: porto-prime-npm-node22-${{ runner.os }}-${{ hashFiles('package.json') }}
+          restore-keys: |
+            porto-prime-npm-node22-${{ runner.os }}-
+
       - name: Instalar dependencias
         run: npm install --no-audit --no-fund
 
