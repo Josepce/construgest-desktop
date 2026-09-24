@@ -1,5 +1,7 @@
 name: Gerar Porto Prime Windows EXE
 
+# Build acionado após validação da busca integrada de produtos.
+
 on:
   push:
     branches: [main]
