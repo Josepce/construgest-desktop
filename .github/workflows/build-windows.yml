@@ -65,6 +65,7 @@ jobs:
           node scripts/check-trial-license.cjs
           node scripts/check-products.mjs
           node scripts/check-quote-search.cjs
+          node scripts/check-pdv-keyboard.cjs
 
       - name: Gerar EXE portatil e instalador
         run: npx electron-builder --win portable nsis --x64 --publish never
@@ -169,3 +170,4 @@ jobs:
           Write-Host "PORTO PRIME $version - BUILD CONCLUIDO"
           Write-Host "========================================"
           Write-Host "Release: https://github.com/$env:GITHUB_REPOSITORY/releases/tag/v$version"
+

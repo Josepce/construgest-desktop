@@ -1,7 +1,7 @@
 const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(+n||0),num=n=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:3}).format(+n||0),esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 let token=localStorage.cg42token||localStorage.cg41token||'',me=null,cart=[],payments=[{method:'Dinheiro',amount:0,touched:false}],purchaseCart=[],quoteCart=[],cashReceived=0;
 let activeQuoteEditId=null,pdvQuoteId=null,pdvQuoteCustomerId=null,pdvQuoteDiscountPct=0;
-let pdvLookupTimer=null,pdvLookupSeq=0,pdvNetworkTimer=null,pdvNetworkOnline=true;
+let pdvLookupTimer=null,pdvLookupSeq=0,pdvNetworkTimer=null,pdvNetworkOnline=true,pdvResultCursor=0,pdvDiscountMode='PERCENT',pdvDiscountValue=0;
 const hasPerm=k=>me?.role==='Administrador'||!!me?.permissions?.[k];
 async function api(url,opt={}){let r=await fetch('/api'+url,{...opt,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,...opt.headers}}),j=await r.json().catch(()=>({}));if(r.status===401){logout();throw Error(j.error||'Sessão expirada')}if(r.status===402){showActivation(j);throw Error(j.error||'Licença necessária')}if(!r.ok)throw Error(j.error||'Erro na operação');return j}
 function toast(x){let t=document.getElementById('toast');t.textContent=x;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2300)}
@@ -75,9 +75,48 @@ async function convertQuote(id){try{let q=await api('/quotes/'+id);if(q.status!=
 async function confirmConvertQuote(id){try{let [q,products]=await Promise.all([api('/quotes/'+id),api('/products')]);cart=q.items.map(i=>{let p=products.find(x=>x.id===+i.product_id);if(!p)return null;let eff=+i.unit_price*(1-(+i.discount_percent||0)/100);return {product_id:p.id,name:p.name,code:p.code,qty:+i.qty,stock:+p.stock,product:p,manual_price:eff}}).filter(Boolean);if(!cart.length)throw Error('O orçamento não possui produtos disponíveis.');pdvQuoteId=q.id;pdvQuoteCustomerId=q.customer_id||null;pdvQuoteDiscountPct=0;payments=[{method:'Dinheiro',amount:0,touched:false}];cashReceived=0;pdvSelected=cart.length-1;pdvApprovalToken=null;pdvApprovalBy='';closeModal();await render('pdv');setTimeout(()=>{if(document.getElementById('pdvCustomer')&&pdvQuoteCustomerId)pdvCustomer.value=pdvQuoteCustomerId;let top=document.querySelector('.legacy-top');if(top)top.insertAdjacentHTML('beforeend',`<div class="pdv-quote-origin">ORÇAMENTO #${id}<small>Conferir e finalizar no PDV</small></div>`);updateLegacyPdvUI()},80);toast('Orçamento #'+id+' carregado no PDV.')}catch(e){toast(e.message)}}
 let pdvSelected=-1;
 let pdvApprovalToken=null,pdvApprovalBy='',pdvPendingAction=null,pdvFinishing=false;
-function pdvUnitPrice(i){return i&&Number.isFinite(+i.manual_price)?+i.manual_price:bestPrice(i.product,i.qty)}
-function pdvDiscountPct(){return Math.max(0,Math.min(100,+document.getElementById('pdvDiscount')?.value||0))}
-function pdvDiscountAmount(){return cartSubtotal()*pdvDiscountPct()/100}
+function pdvUnitPrice(i){return i&&i.manual_price!=null&&Number.isFinite(+i.manual_price)?+i.manual_price:bestPrice(i.product,i.qty)}
+function pdvDiscountAmount(){
+  const base=cartSubtotal();
+  return Math.min(base,pdvDiscountMode==='AMOUNT'?pdvDiscountValue:base*pdvDiscountValue/100);
+}
+function pdvDiscountPct(){const base=cartSubtotal();return base>0?Math.round(pdvDiscountAmount()/base*100000000)/1000000:0}
+function pdvResetDiscount(){pdvDiscountMode='PERCENT';pdvDiscountValue=0}
+function pdvDiscountModeChanged(){
+  pdvDiscountMode=document.getElementById('pdvDiscountMode')?.value==='AMOUNT'?'AMOUNT':'PERCENT';
+  pdvDiscountValue=0;let input=document.getElementById('pdvDiscount');if(input){input.value='0';input.max=pdvDiscountMode==='PERCENT'?'100':''}
+  updatePdvTotals();
+}
+function pdvDiscountPreview(){
+  const v=Number(document.getElementById('pdvDiscount')?.value);
+  if(Number.isFinite(v)&&v>=0&&v<=(pdvDiscountMode==='PERCENT'?100:cartSubtotal())){pdvDiscountValue=v;updatePdvTotals()}
+}
+function pdvFocusNext(id){const field=document.getElementById(id);field?.focus();if(field?.tagName==='INPUT')field.select()}
+async function pdvFieldEnter(event,stage){
+  if(event.key!=='Enter')return;
+  event.preventDefault();
+  if(stage==='qty'){
+    const qty=Number(event.currentTarget.value);
+    if(!Number.isFinite(qty)||qty<=0)return toast('Informe uma quantidade maior que zero.');
+    setSelectedPdvQty(qty);pdvFocusNext('pdvSelectedUnit');return;
+  }
+  if(stage==='unit'){
+    if(await requestPdvPriceChange(event.currentTarget.value))pdvFocusNext('pdvCustomer');return;
+  }
+  if(stage==='customer')return pdvFocusNext('pdvDiscountMode');
+  if(stage==='mode')return pdvFocusNext('pdvDiscount');
+  if(stage==='discount'){
+    if(await requestPdvDiscount(event.currentTarget.value))pdvFocusNext('pdvPaymentMethod');return;
+  }
+  if(stage==='payment')return pdvFocusNext('pdvPaymentAmount');
+  if(stage==='paymentAmount'){
+    const amount=Number(event.currentTarget.value),total=currentPdvTotal();
+    if(!Number.isFinite(amount)||amount<0)return toast('Informe um valor de pagamento válido.');
+    payments[0].amount=amount;payments[0].touched=true;updateCashChange();
+    if(payments[0].method==='Dinheiro')pdvFocusNext('cashReceivedInput');else pdvFocusNext('pdvFinish');return;
+  }
+  if(stage==='cashReceived'){cashReceived=Number(event.currentTarget.value)||0;updateCashChange();pdvFocusNext('pdvFinish')}
+}
 
 
 function pdvPriceKind(i){
@@ -128,7 +167,7 @@ async function pdv(){
   let [cash,customers,cfg]=await Promise.all([api('/cash/current'),api('/customers'),api('/settings')]);
   if(!cash)return `<div class="alert red">O caixa está fechado. Abra o caixa antes de iniciar vendas.</div><button class=primary onclick=openCash()>Abrir caixa</button>`;
   window._pdvCustomers=customers;installPdvShortcuts();
-  if(!cart.length){pdvSelected=-1;payments=[{method:'Dinheiro',amount:0,touched:false}]}
+  if(!cart.length){pdvSelected=-1;payments=[{method:'Dinheiro',amount:0,touched:false}];pdvResetDiscount()}
   else if(pdvSelected<0||pdvSelected>=cart.length)pdvSelected=cart.length-1;
   let selected=pdvSelectedItem(),total=currentPdvTotal(),customerOptions=customers.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
   setTimeout(()=>{document.body.classList.toggle('pdv-counter-mode',localStorage.cgPdvCounterMode==='1');document.getElementById('pdvSearch')?.focus();startPdvNetworkMonitor()},40);
@@ -139,8 +178,8 @@ async function pdv(){
     </div>
     <div class="legacy-searchbar">
       <label>Digite o código, EAN ou nome do produto</label>
-      <input id="pdvSearch" autocomplete="off" placeholder="Código do produto..." oninput="pdvLookup(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();pdvEnter()}">
-      <div class="legacy-shortcuts-top"><span>F2 Buscar</span><span>F3 Cliente</span><span>F4 Remover</span><span>F5 Desconto</span><span>F6 Quantidade</span><span>F7 Recuperar</span><span>F8 Pagamento</span><span>F9 Suspender</span><span>F10 Calculadora</span><span>F12 Finalizar</span></div>
+      <input id="pdvSearch" autocomplete="off" placeholder="Código do produto..." oninput="pdvLookup(this.value)" onkeydown="pdvSearchKey(event)" role=combobox aria-controls=pdvResults aria-expanded=false>
+      <div class="legacy-shortcuts-top"><span>↑ ↓ navegar • Enter selecionar</span><span>F2 Buscar</span><span>F3 Cliente</span><span>F4 Remover</span><span>F5 Desconto</span><span>F6 Quantidade</span><span>F7 Recuperar</span><span>F8 Pagamento</span><span>F9 Suspender</span><span>F10 Calculadora</span><span>F12 Finalizar</span></div>
       <div id="pdvResults" class="pdv-results"></div>
     </div>
     <div class="legacy-main">
@@ -148,26 +187,26 @@ async function pdv(){
         <div class="legacy-product-image"><div class="cart-symbol">🛒</div><b id="pdvSelectedName">${selected?esc(selected.name):'SEM PRODUTO'}</b><small id="pdvSelectedSub">${selected?esc(selected.code||'')+' • '+pdvPriceKind(selected):'Aguardando leitura'}</small></div>
         <div class="legacy-fields">
           <label>Código<input id="pdvSelectedCode" readonly value="${selected?esc(selected.code||''):''}"></label>
-          <label>Quantidade<input id="pdvQty" type="number" step=".001" min=".001" value="${selected?selected.qty:0}" ${selected?'':'disabled'} onchange="setSelectedPdvQty(this.value)"></label>
-          <label>Preço Unitário<input id="pdvSelectedUnit" type="number" min="0" step=".01" value="${selected?pdvUnitPrice(selected).toFixed(2):'0.00'}" ${selected?'':'disabled'} onchange="requestPdvPriceChange(this.value)" title="Qualquer funcionário pode aumentar. Redução exige senha de Administrador/Gerente."></label>
+          <label>Quantidade<input id="pdvQty" type="number" step=".001" min=".001" value="${selected?selected.qty:0}" ${selected?'':'disabled'} onchange="setSelectedPdvQty(this.value)" onkeydown="pdvFieldEnter(event,'qty')"></label>
+          <label>Preço Unitário<input id="pdvSelectedUnit" type="number" min="0" step=".01" value="${selected?pdvUnitPrice(selected).toFixed(2):'0.00'}" ${selected?'':'disabled'} onchange="requestPdvPriceChange(this.value)" onkeydown="pdvFieldEnter(event,'unit')" title="Qualquer funcionário pode aumentar. Redução exige senha de Administrador/Gerente."></label>
           <label>Preço Total<input id="pdvSelectedTotal" readonly value="${selected?(selected.qty*pdvUnitPrice(selected)).toFixed(2):'0,00'}"></label>
         </div>
       </div>
-      <div class="legacy-items">
-        <table><thead><tr><th>Item</th><th>Código</th><th>Descrição do Produto</th><th>Qtd.</th><th>Vlr. Unit.</th><th>Vlr. Total</th><th></th></tr></thead>
-        <tbody id="legacyItemsBody">${legacyItemsHtml()}</tbody></table>
-      </div>
-    </div>
     <div class="legacy-client-row">
-      <label>Cliente <select id="pdvCustomer"><option value="">Consumidor Final</option>${customerOptions}</select></label>
-      <label>Desconto (%) <input id="pdvDiscount" type="number" min="0" max="100" step=".01" value="0" onchange="requestPdvDiscount(this.value)" title="Desconto exige autorização de Administrador/Gerente."></label>
+      <label>Cliente <select id="pdvCustomer" onkeydown="pdvFieldEnter(event,'customer')"><option value="">Consumidor Final</option>${customerOptions}</select></label>
+      <label>Tipo de desconto <select id="pdvDiscountMode" onchange="pdvDiscountModeChanged()" onkeydown="pdvFieldEnter(event,'mode')"><option value="PERCENT" ${pdvDiscountMode==='PERCENT'?'selected':''}>% Porcentagem</option><option value="AMOUNT" ${pdvDiscountMode==='AMOUNT'?'selected':''}>R$ Dinheiro</option></select></label>
+      <label>Valor do desconto <input id="pdvDiscount" type="number" min="0" ${pdvDiscountMode==='PERCENT'?'max="100"':''} step=".01" value="${pdvDiscountValue}" oninput="pdvDiscountPreview()" onchange="requestPdvDiscount(this.value)" onkeydown="pdvFieldEnter(event,'discount')" title="Desconto exige autorização de Administrador/Gerente."></label>
       <div class="pdv-discount-info"><small>Desconto</small><b id="pdvDiscountAmount">${money(0)}</b></div>
       <button onclick="openMaterialCalculator()">▦ Calculadora</button>
       <button onclick="showSuspendedSales()">▣ Vendas suspensas</button>
     </div>
+      <div class="legacy-items">
+        <table><thead><tr><th>Item</th><th>Código</th><th>Descrição do Produto</th><th>Qtd.</th><th>Vlr. Unit.</th><th>Vlr. Total</th><th></th></tr></thead>
+        <tbody id="legacyItemsBody">${legacyItemsHtml()}</tbody></table>
+      </div>
     <div class="legacy-actions">
       <button onclick="removePdvSelected()">F4<br><b>Cancelar item</b></button>
-      <button onclick="pdvDiscount.focus();pdvDiscount.select()">F5<br><b>Desconto %</b></button>
+      <button onclick="pdvDiscount.focus();pdvDiscount.select()">F5<br><b>Desconto R$ / %</b></button>
       <button onclick="pdvCustomer.focus()">F3<br><b>Cliente</b></button>
       <button onclick="focusPdvQty()">F6<br><b>Quantidade</b></button>
       <button onclick="openPdvPaymentModal()">F8<br><b>Pagamento</b></button>
@@ -177,10 +216,11 @@ async function pdv(){
     <div class="legacy-paybox">
       <div><b>FORMA DE PAGAMENTO</b><div id="payBox">${paymentHtml()}</div><button class="secondary mini" onclick="addPayment()">+ Pagamento misto</button></div>
       <div id="cashChangeBox">${cashChangeHtml()}</div>
-      <button class="legacy-finish" onclick="finishSale()">F12 • FINALIZAR VENDA</button>
+      <button id="pdvFinish" class="legacy-finish" onclick="finishSale()">F12 • FINALIZAR VENDA</button>
+    </div>
     </div>
     <div class="legacy-cash open"><span>▣</span><b>CAIXA ABERTO</b><strong>${esc(cash.operator||me.name)}</strong></div>
-    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span id="pdvNetworkStatus">● Servidor conectado</span><span>Porto Prime 4.1.8</span></div>
+    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span id="pdvNetworkStatus">● Servidor conectado</span><span>Porto Prime 4.1.9</span></div>
   </div>`
 }
 function installPdvShortcuts(){
@@ -208,17 +248,52 @@ function setSelectedPdvQty(v){let i=pdvSelectedItem();if(!i)return;i.qty=Math.ma
 function removeCartItem(n){if(n<0||n>=cart.length)return;cart.splice(n,1);pdvSelected=cart.length?Math.min(n,cart.length-1):-1;updateLegacyPdvUI();pdvSearch?.focus()}
 function removePdvSelected(){if(!cart.length)return toast('Carrinho vazio.');if(pdvSelected<0||pdvSelected>=cart.length)pdvSelected=cart.length-1;removeCartItem(pdvSelected)}
 function changePdvQty(d){let i=pdvSelectedItem();if(!i)return toast('Carrinho vazio.');i.qty=Math.max(.001,(+i.qty||0)+d);updateLegacyPdvUI()}
+function pdvShowResults(rows){
+  const box=document.getElementById('pdvResults'),search=document.getElementById('pdvSearch');if(!box||!search)return;
+  window._pdvResults=rows;pdvResultCursor=0;search.dataset.lastQuery=search.value.trim();
+  box.style.display='block';search.setAttribute('aria-expanded','true');
+  box.innerHTML=rows.slice(0,20).map((p,n)=>`<button type="button" class="result ${n===0?'active':''}" role="option" aria-selected="${n===0}" onmousedown="event.preventDefault()" onclick="addCart(${p.id})"><span><b>${esc(p.code)} — ${esc(p.name)}</b><br><small>Estoque: ${num(p.stock)} ${esc(p.unit)}${p.brand?' • '+esc(p.brand):''}</small><br><small>Varejo ${money(p.retail)}${+p.wholesale>0?' • Atacado '+money(p.wholesale)+' a partir de '+num(p.wholesale_min):''}${+p.promo>0?' • Promo '+money(p.promo):''}</small></span><strong class=price>${money(bestPrice(p,1))}</strong></button>`).join('')||'<div class=empty>Nenhum resultado.</div>';
+}
 function pdvLookup(q){
-  clearTimeout(pdvLookupTimer);let term=String(q||'').trim(),box=document.getElementById('pdvResults');if(!box)return;
-  if(!term){box.style.display='none';window._pdvResults=[];return}
-  let seq=++pdvLookupSeq;
-  pdvLookupTimer=setTimeout(async()=>{try{let r=await api('/products/search?q='+encodeURIComponent(term));if(seq!==pdvLookupSeq||document.getElementById('pdvSearch')?.value.trim()!==term)return;window._pdvResults=r;let exact=r.find(p=>String(p.code||'')===term||String(p.ean||'')===term);if(exact&&r.length){addCart(exact.id);return}box.style.display='block';box.innerHTML=r.map(p=>`<div class=result onclick="addCart(${p.id})"><span><b>${esc(p.code)} — ${esc(p.name)}</b><br><small>Estoque: ${num(p.stock)} ${esc(p.unit)}${p.brand?' • '+esc(p.brand):''}</small><br><small>Varejo ${money(p.retail)}${+p.wholesale>0?' • Atacado '+money(p.wholesale)+' a partir de '+num(p.wholesale_min):''}${+p.promo>0?' • Promo '+money(p.promo):''}</small></span><strong class=price>${money(bestPrice(p,1))}</strong></div>`).join('')||'<div class=empty>Nenhum resultado.</div>'}catch(e){if(seq===pdvLookupSeq)toast('Falha ao consultar produto. Verifique a conexão.')}},term.length>=5?70:180)
+  clearTimeout(pdvLookupTimer);const term=String(q||'').trim(),box=document.getElementById('pdvResults');
+  const seq=++pdvLookupSeq;if(!box)return;
+  if(!term){box.style.display='none';window._pdvResults=[];document.getElementById('pdvSearch')?.setAttribute('aria-expanded','false');return}
+  window._pdvResults=[];box.style.display='none';
+  pdvLookupTimer=setTimeout(async()=>{try{
+    const r=await api('/products/search?q='+encodeURIComponent(term));
+    if(seq!==pdvLookupSeq||document.getElementById('pdvSearch')?.value.trim()!==term)return;
+    pdvShowResults(r);
+  }catch(e){if(seq===pdvLookupSeq)toast('Falha ao consultar produto. Verifique a conexão.')}},term.length>=5?70:180)
+}
+function pdvSearchKey(event){
+  if(event.key==='Escape'){const box=document.getElementById('pdvResults');if(box)box.style.display='none';return}
+  if(!['ArrowUp','ArrowDown','Enter'].includes(event.key))return;
+  event.preventDefault();const search=document.getElementById('pdvSearch'),term=search?.value.trim();if(!term)return;
+  const rows=window._pdvResults||[],visible=rows.slice(0,20);
+  if(event.key!=='Enter'){
+    if(!visible.length)return;
+    pdvResultCursor=(pdvResultCursor+(event.key==='ArrowDown'?1:-1)+visible.length)%visible.length;
+    const buttons=document.querySelectorAll('#pdvResults .result');buttons.forEach((button,i)=>{button.classList.toggle('active',i===pdvResultCursor);button.setAttribute('aria-selected',i===pdvResultCursor?'true':'false')});buttons[pdvResultCursor]?.scrollIntoView({block:'nearest'});return;
+  }
+  pdvEnter();
 }
 async function checkPdvNetwork(){if(!document.getElementById('pdvNetworkStatus'))return;let el=document.getElementById('pdvNetworkStatus');try{await api('/me');pdvNetworkOnline=true;el.textContent='● Servidor conectado';el.style.fontWeight='700';el.style.opacity='1'}catch(e){pdvNetworkOnline=false;if(el){el.textContent='● SERVIDOR DESCONECTADO';el.style.fontWeight='900';el.style.opacity='1'}}}
 function startPdvNetworkMonitor(){clearInterval(pdvNetworkTimer);checkPdvNetwork();pdvNetworkTimer=setInterval(()=>{if(document.getElementById('pdvNetworkStatus'))checkPdvNetwork();else clearInterval(pdvNetworkTimer)},10000)}
-function pdvEnter(){let q=pdvSearch.value.trim(),r=window._pdvResults||[];let exact=r.find(p=>String(p.code)===q||String(p.ean||'')===q);if(exact)addCart(exact.id);else if(r.length===1)addCart(r[0].id)}
+async function pdvEnter(){
+  const search=document.getElementById('pdvSearch'),term=search?.value.trim();if(!term)return;
+  clearTimeout(pdvLookupTimer);const seq=++pdvLookupSeq;
+  let rows=window._pdvResults||[];
+  if(!rows.length||search.dataset.lastQuery!==term){
+    try{rows=await api('/products/search?q='+encodeURIComponent(term))}catch{return toast('Falha ao consultar produto.')}
+    if(seq!==pdvLookupSeq||search.value.trim()!==term)return;
+    pdvShowResults(rows);
+  }
+  const exact=rows.find(p=>String(p.code||'')===term||String(p.ean||'')===term);
+  const chosen=exact||rows.slice(0,20)[pdvResultCursor];
+  if(chosen)await addCart(chosen.id);else toast('Produto não encontrado.');
+}
 function bestPrice(p,q){let today=new Date().toISOString().slice(0,10),promo=+p.promo>0&&(!p.promo_start||today>=String(p.promo_start).slice(0,10))&&(!p.promo_end||today<=String(p.promo_end).slice(0,10));return promo?+p.promo:(q>=+p.wholesale_min&&+p.wholesale>0?+p.wholesale:+p.retail)}
-async function addCart(id){let p=(window._pdvResults||[]).find(x=>x.id===id);if(!p)p=(await api('/products')).find(x=>x.id===id);if(!p)return toast('Produto não encontrado.');let i=cart.find(x=>x.product_id===id);if(i){i.qty++;pdvSelected=cart.indexOf(i)}else{cart.push({product_id:id,name:p.name,code:p.code,qty:1,stock:+p.stock,product:p});pdvSelected=cart.length-1}pdvSearch.value='';pdvResults.style.display='none';window._pdvResults=[];updateLegacyPdvUI();pdvSearch.focus()}
+async function addCart(id){let p=(window._pdvResults||[]).find(x=>x.id===id);if(!p)p=(await api('/products')).find(x=>x.id===id);if(!p)return toast('Produto não encontrado.');let i=cart.find(x=>x.product_id===id);if(i){i.qty++;pdvSelected=cart.indexOf(i)}else{cart.push({product_id:id,name:p.name,code:p.code,qty:1,stock:+p.stock,product:p});pdvSelected=cart.length-1}pdvSearch.value='';pdvSearch.dataset.lastQuery='';pdvResults.style.display='none';pdvSearch.setAttribute('aria-expanded','false');window._pdvResults=[];updateLegacyPdvUI();pdvFocusNext('pdvQty')}
 function cartSubtotal(){return cart.reduce((a,i)=>a+pdvUnitPrice(i)*i.qty,0)}
 function currentPdvTotal(){return Math.max(0,cartSubtotal()-pdvDiscountAmount())}
 function updatePdvTotals(opts={}){
@@ -232,8 +307,9 @@ function updatePdvTotals(opts={}){
 }
 async function ensureManagerApproval(actionText){
   if(pdvApprovalToken)return true;
+  if(window._pdvApprovalPromise)return window._pdvApprovalPromise;
   pdvPendingAction=actionText;
-  return new Promise(resolve=>{
+  window._pdvApprovalPromise=new Promise(resolve=>{
     window._pdvApprovalResolve=resolve;
     modal(`<h3>Autorização necessária</h3>
       <p class=muted>${esc(actionText)}</p>
@@ -244,34 +320,39 @@ async function ensureManagerApproval(actionText){
       <div id=approvalError class="alert red" style="display:none;margin-top:12px"></div>
       <div style="margin-top:18px"><button class=primary onclick=confirmManagerApproval()>AUTORIZAR</button> <button onclick=cancelManagerApproval()>Cancelar</button></div>`);
     setTimeout(()=>document.getElementById('approvalEmail')?.focus(),30)
-  })
+  });return window._pdvApprovalPromise
 }
 async function confirmManagerApproval(){
   let email=document.getElementById('approvalEmail')?.value||'',password=document.getElementById('approvalPassword')?.value||'',err=document.getElementById('approvalError');
   try{
     let r=await api('/manager-approval',{method:'POST',body:JSON.stringify({email,password})});
     pdvApprovalToken=r.approval_token;pdvApprovalBy=r.approved_by||'Gerência';
-    let resolve=window._pdvApprovalResolve;window._pdvApprovalResolve=null;closeModal();if(resolve)resolve(true);toast('Autorizado por '+pdvApprovalBy)
+    let resolve=window._pdvApprovalResolve;window._pdvApprovalResolve=null;window._pdvApprovalPromise=null;closeModal();if(resolve)resolve(true);toast('Autorizado por '+pdvApprovalBy)
   }catch(e){if(err){err.style.display='block';err.textContent=e.message}else alert(e.message)}
 }
-function cancelManagerApproval(){let resolve=window._pdvApprovalResolve;window._pdvApprovalResolve=null;closeModal();if(resolve)resolve(false)}
+function cancelManagerApproval(){let resolve=window._pdvApprovalResolve;window._pdvApprovalResolve=null;window._pdvApprovalPromise=null;closeModal();if(resolve)resolve(false)}
 async function requestPdvPriceChange(v){
   let i=pdvSelectedItem();if(!i)return;
   let requested=+v,base=bestPrice(i.product,i.qty),input=document.getElementById('pdvSelectedUnit');
-  if(!Number.isFinite(requested)||requested<=0){if(input)input.value=pdvUnitPrice(i).toFixed(2);return toast('Preço inválido.')}
+  if(!Number.isFinite(requested)||requested<=0){if(input)input.value=pdvUnitPrice(i).toFixed(2);toast('Preço inválido.');return false}
   if(requested<base-0.001){
     let ok=await ensureManagerApproval(`Reduzir ${i.name} de ${money(base)} para ${money(requested)}.`);
-    if(!ok){if(input)input.value=pdvUnitPrice(i).toFixed(2);return}
+    if(!ok){if(input)input.value=pdvUnitPrice(i).toFixed(2);return false}
   }
   i.manual_price=requested;i.price_authorized=requested<base-0.001;
-  updateLegacyPdvUI()
+  updateLegacyPdvUI();return true
 }
 async function requestPdvDiscount(v){
-  let input=document.getElementById('pdvDiscount'),pct=Math.max(0,Math.min(100,+v||0));
-  if(pct<=0){if(input)input.value='0';updatePdvTotals();return}
-  let ok=await ensureManagerApproval(`Aplicar desconto de ${pct.toFixed(2).replace('.',',')}% nesta venda.`);
-  if(!ok){if(input)input.value='0';updatePdvTotals();return}
-  if(input)input.value=String(pct);updatePdvTotals()
+  const input=document.getElementById('pdvDiscount'),amount=Number(v),limit=pdvDiscountMode==='PERCENT'?100:cartSubtotal();
+  if(!Number.isFinite(amount)||amount<0||amount>limit){
+    if(input)input.value=String(pdvDiscountValue);toast(pdvDiscountMode==='PERCENT'?'Informe um percentual entre 0 e 100.':'O desconto não pode superar o subtotal.');return false;
+  }
+  if(amount>0){
+    const label=pdvDiscountMode==='AMOUNT'?money(amount):`${amount.toFixed(2).replace('.',',')}%`;
+    const ok=await ensureManagerApproval(`Aplicar desconto de ${label} nesta venda.`);
+    if(!ok){pdvDiscountValue=0;if(input)input.value='0';updatePdvTotals();return false}
+  }
+  pdvDiscountValue=amount;if(input)input.value=String(amount);updatePdvTotals();return true;
 }
 function refreshCart(){updateLegacyPdvUI()}
 function toggleCounterMode(){document.body.classList.toggle('pdv-counter-mode');localStorage.cgPdvCounterMode=document.body.classList.contains('pdv-counter-mode')?'1':'0';toast(document.body.classList.contains('pdv-counter-mode')?'Modo Balcão ativado.':'Modo Balcão desativado.')}
@@ -281,14 +362,14 @@ function openPdvPaymentModal(){
   let total=currentPdvTotal(),sum=payments.reduce((a,p)=>a+(+p.amount||0),0),remaining=Math.max(0,total-sum);
   modal(`<div class="pdv-pay-modal"><span class=eyebrow>F8 • PAGAMENTO</span><h3>Receber ${money(total)}</h3><div class="pdv-pay-quick">${['Dinheiro','PIX','Cartão Débito','Cartão Crédito','Crediário'].map((m,i)=>`<button onclick="setQuickPdvPayment('${m}')">${['💵','◆','▣','▤','♙'][i]}<b>${m}</b></button>`).join('')}</div><div class="pdv-pay-summary"><span>Total <b>${money(total)}</b></span><span>Informado <b>${money(sum)}</b></span><span class="${remaining>.01?'danger':'ok'}">Falta <b>${money(remaining)}</b></span></div><div class=alert>Para pagamento misto, use <b>Adicionar pagamento</b> e informe cada parte.</div><div class=row><button class=primary onclick="closeModal();addPayment()">+ Adicionar pagamento misto</button><button onclick=closeModal()>Voltar ao PDV</button></div></div>`)}
 function setQuickPdvPayment(method){let total=currentPdvTotal();payments=[{method,amount:total,touched:true}];cashReceived=0;closeModal();updatePdvTotals();if(method==='Dinheiro'){setTimeout(()=>document.getElementById('cashReceivedInput')?.focus(),40)}else toast(method+' selecionado.')}
-function paymentHtml(){let total=currentPdvTotal();return payments.map((p,n)=>`<div class="payrow pdv-payrow"><select aria-label="Forma de pagamento" onchange="payments[${n}].method=this.value;if(this.value!=='Dinheiro')cashReceived=0;updatePdvTotals()">${['Dinheiro','PIX','Cartão Débito','Cartão Crédito','Crediário'].map(x=>`<option ${p.method===x?'selected':''}>${x}</option>`).join('')}</select><input aria-label="Valor" type=number step=.01 value="${(+p.amount||0).toFixed(2)}" oninput="payments[${n}].amount=+this.value;payments[${n}].touched=true;updateCashChange()"><button class=danger-btn onclick="payments.splice(${n},1);if(!payments.length)payments=[{method:'Dinheiro',amount:total,touched:false}];updatePdvTotals()">×</button></div>`).join('')}
+function paymentHtml(){let total=currentPdvTotal();return payments.map((p,n)=>`<div class="payrow pdv-payrow"><select ${n===0?'id=\"pdvPaymentMethod\" onkeydown=\"pdvFieldEnter(event,\'payment\')\"':''} aria-label="Forma de pagamento" onchange="payments[${n}].method=this.value;if(this.value!=='Dinheiro')cashReceived=0;updatePdvTotals()">${['Dinheiro','PIX','Cartão Débito','Cartão Crédito','Crediário'].map(x=>`<option ${p.method===x?'selected':''}>${x}</option>`).join('')}</select><input ${n===0?'id=\"pdvPaymentAmount\" onkeydown=\"pdvFieldEnter(event,\'paymentAmount\')\"':''} aria-label="Valor" type=number step=.01 value="${(+p.amount||0).toFixed(2)}" oninput="payments[${n}].amount=+this.value;payments[${n}].touched=true;updateCashChange()"><button class=danger-btn onclick="payments.splice(${n},1);if(!payments.length)payments=[{method:'Dinheiro',amount:total,touched:false}];updatePdvTotals()">×</button></div>`).join('')}
 function addPayment(){let total=currentPdvTotal(),used=payments.reduce((a,p)=>a+(+p.amount||0),0),remaining=Math.max(0,total-used);payments.push({method:'PIX',amount:remaining,touched:false});payments.forEach(p=>p.touched=true);updatePdvTotals();setTimeout(()=>document.querySelectorAll('#payBox select')[payments.length-1]?.focus(),20)}
-function cashChangeHtml(){let cash=payments.reduce((a,p)=>a+(p.method==='Dinheiro'?(+p.amount||0):0),0);if(!cash)return '';let received=Math.max(cash,+cashReceived||0),change=Math.max(0,received-cash);return `<div class=pdv-change><label>Dinheiro recebido</label><input id=cashReceivedInput type=number step=.01 min=0 value="${cashReceived?cashReceived.toFixed(2):''}" placeholder="Ex.: 100,00" oninput="cashReceived=+this.value||0;updateCashChange()"><div><span>Troco</span><strong id=cashChangeValue>${money(change)}</strong></div></div>`}
+function cashChangeHtml(){let cash=payments.reduce((a,p)=>a+(p.method==='Dinheiro'?(+p.amount||0):0),0);if(!cash)return '';let received=Math.max(cash,+cashReceived||0),change=Math.max(0,received-cash);return `<div class=pdv-change><label>Dinheiro recebido</label><input id=cashReceivedInput type=number step=.01 min=0 value="${cashReceived?cashReceived.toFixed(2):''}" placeholder="Ex.: 100,00" oninput="cashReceived=+this.value||0;updateCashChange()" onkeydown="pdvFieldEnter(event,'cashReceived')"><div><span>Troco</span><strong id=cashChangeValue>${money(change)}</strong></div></div>`}
 function updateCashChange(){let cash=payments.reduce((a,p)=>a+(p.method==='Dinheiro'?(+p.amount||0):0),0),received=Math.max(cash,+cashReceived||0),change=Math.max(0,received-cash),el=document.getElementById('cashChangeValue');if(el)el.textContent=money(change)}
 function suspendCurrentSale(){if(!cart.length)return toast('Carrinho vazio.');modal(`<h3>Suspender venda</h3><p class=muted>A venda ficará disponível para ser retomada em qualquer computador da rede.</p><label>Identificação</label><input id=suspendLabel maxlength=80 value="Venda ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}" placeholder="Ex.: Cliente João - Obra Aldeota"><div style="margin-top:18px"><button class=primary onclick=confirmSuspendSale()>SUSPENDER VENDA</button> <button onclick=closeModal()>Cancelar</button></div>`);setTimeout(()=>suspendLabel?.select(),30)}
-async function confirmSuspendSale(){try{await api('/suspended-sales',{method:'POST',body:JSON.stringify({label:document.getElementById('suspendLabel')?.value||'Venda suspensa',customer_id:+document.getElementById('pdvCustomer')?.value||null,payload:{items:cart.map(i=>({product_id:i.product_id,qty:i.qty,manual_price:Number.isFinite(+i.manual_price)?+i.manual_price:null})),discount:+document.getElementById('pdvDiscount')?.value||0,payments}})});cart=[];payments=[{method:'Dinheiro',amount:0,touched:false}];cashReceived=0;pdvSelected=-1;pdvApprovalToken=null;pdvApprovalBy='';closeModal();toast('Venda suspensa com sucesso.');render('pdv')}catch(e){alert(e.message)}}
+async function confirmSuspendSale(){try{await api('/suspended-sales',{method:'POST',body:JSON.stringify({label:document.getElementById('suspendLabel')?.value||'Venda suspensa',customer_id:+document.getElementById('pdvCustomer')?.value||null,payload:{items:cart.map(i=>({product_id:i.product_id,qty:i.qty,manual_price:Number.isFinite(+i.manual_price)?+i.manual_price:null})),discount:pdvDiscountPct(),discount_mode:pdvDiscountMode,discount_value:pdvDiscountValue,payments}})});cart=[];payments=[{method:'Dinheiro',amount:0,touched:false}];cashReceived=0;pdvSelected=-1;pdvApprovalToken=null;pdvApprovalBy='';closeModal();toast('Venda suspensa com sucesso.');render('pdv')}catch(e){alert(e.message)}}
 async function showSuspendedSales(){try{let rows=await api('/suspended-sales');modal(`<div class=toolbar><h3>Vendas suspensas</h3><button onclick=closeModal()>Fechar</button></div>${rows.length?rows.map(x=>`<div class=suspended-row><div><b>${esc(x.label||'Venda suspensa')}</b><small>${esc(x.customer||'Consumidor Final')} • ${esc(x.operator||'')} • ${new Date(x.updated_at).toLocaleString('pt-BR')}</small></div><button class=primary onclick="resumeSuspendedSale(${x.id})">Retomar</button><button class=danger-btn onclick="deleteSuspendedSale(${x.id})">Excluir</button></div>`).join(''):'<div class=empty>Nenhuma venda suspensa.</div>'}`)}catch(e){alert(e.message)}}
-async function resumeSuspendedSale(id){try{let rows=await api('/suspended-sales'),x=rows.find(r=>r.id===id);if(!x)return;let all=await api('/products'),items=x.payload?.items||[];cart=items.map(i=>{let p=all.find(z=>z.id===+i.product_id);return p?{product_id:p.id,name:p.name,code:p.code,qty:+i.qty,stock:+p.stock,product:p,manual_price:Number.isFinite(+i.manual_price)?+i.manual_price:null}:null}).filter(Boolean);payments=(x.payload?.payments||[{method:'Dinheiro',amount:0}]).map(p=>({...p,touched:true}));cashReceived=0;pdvSelected=cart.length-1;pdvApprovalToken=null;pdvApprovalBy='';closeModal();await render('pdv');if(document.getElementById('pdvCustomer')&&x.customer_id)pdvCustomer.value=x.customer_id;if(document.getElementById('pdvDiscount'))pdvDiscount.value=+x.payload?.discount||0;updateLegacyPdvUI();await api('/suspended-sales/'+id,{method:'DELETE'});toast('Venda retomada.')}catch(e){alert(e.message)}}
+async function resumeSuspendedSale(id){try{let rows=await api('/suspended-sales'),x=rows.find(r=>r.id===id);if(!x)return;let all=await api('/products'),items=x.payload?.items||[];cart=items.map(i=>{let p=all.find(z=>z.id===+i.product_id);return p?{product_id:p.id,name:p.name,code:p.code,qty:+i.qty,stock:+p.stock,product:p,manual_price:Number.isFinite(+i.manual_price)?+i.manual_price:null}:null}).filter(Boolean);payments=(x.payload?.payments||[{method:'Dinheiro',amount:0}]).map(p=>({...p,touched:true}));cashReceived=0;pdvSelected=cart.length-1;pdvApprovalToken=null;pdvApprovalBy='';closeModal();await render('pdv');if(document.getElementById('pdvCustomer')&&x.customer_id)pdvCustomer.value=x.customer_id;pdvDiscountMode=x.payload?.discount_mode==='AMOUNT'?'AMOUNT':'PERCENT';pdvDiscountValue=Number(x.payload?.discount_value??x.payload?.discount)||0;if(document.getElementById('pdvDiscountMode'))pdvDiscountMode=document.getElementById('pdvDiscountMode').value=pdvDiscountMode;if(document.getElementById('pdvDiscount'))pdvDiscount.value=pdvDiscountValue;updateLegacyPdvUI();await api('/suspended-sales/'+id,{method:'DELETE'});toast('Venda retomada.')}catch(e){alert(e.message)}}
 function deleteSuspendedSale(id){closeModal();modal(`<h3>Excluir venda suspensa?</h3><p>Esta ação não altera estoque nem caixa, apenas remove a venda da lista de suspensas.</p><button class=danger-btn onclick="confirmDeleteSuspendedSale(${id})">EXCLUIR</button> <button onclick=closeModal()>Cancelar</button>`)}
 async function confirmDeleteSuspendedSale(id){try{await api('/suspended-sales/'+id,{method:'DELETE'});closeModal();showSuspendedSales()}catch(e){alert(e.message)}}
 function openMaterialCalculator(){modal(`<h3>Calculadora de pisos e cerâmicas</h3><p class=muted>Calcule rapidamente a quantidade necessária para uma obra.</p><div class=formgrid><div><label>Largura do ambiente (m)</label><input id=calcW type=number step=.01 min=0 oninput=calcMaterial()></div><div><label>Comprimento (m)</label><input id=calcL type=number step=.01 min=0 oninput=calcMaterial()></div><div><label>Rendimento por caixa (m²)</label><input id=calcBox type=number step=.01 min=.01 oninput=calcMaterial()></div><div><label>Margem de perda</label><select id=calcLoss onchange=calcMaterial()><option value=5>5%</option><option value=10 selected>10%</option><option value=15>15%</option></select></div></div><div id=calcResult class=calc-result><span>Informe as medidas acima.</span></div><div class=row><button class=primary onclick=closeModal()>Concluir</button></div>`)}
@@ -297,6 +378,7 @@ async function finishSale(){
   if(pdvFinishing)return;
   if(!pdvNetworkOnline)return alert('Servidor desconectado. Aguarde a conexão voltar antes de finalizar a venda.');
   if(!cart.length)return alert('Carrinho vazio.');
+  if(pdvDiscountMode==='AMOUNT'&&pdvDiscountValue>cartSubtotal()+0.001)return toast('O desconto em reais não pode superar o subtotal.');
   let discount_percent=pdvDiscountPct(),total=currentPdvTotal(),sum=payments.reduce((a,p)=>a+(+p.amount||0),0);
   let needsApproval=discount_percent>0||cart.some(i=>pdvUnitPrice(i)<bestPrice(i.product,i.qty)-0.001);
   if(needsApproval&&!pdvApprovalToken){let ok=await ensureManagerApproval('Esta venda possui desconto ou preço abaixo da tabela.');if(!ok)return}
@@ -314,7 +396,7 @@ async function finishSale(){
       payments
     })});
     let received=cashReceived||cashDue,change=Math.max(0,received-cashDue);
-    cart=[];pdvSelected=-1;payments=[{method:'Dinheiro',amount:0,touched:false}];cashReceived=0;
+    cart=[];pdvSelected=-1;payments=[{method:'Dinheiro',amount:0,touched:false}];cashReceived=0;pdvResetDiscount();
     pdvApprovalToken=null;pdvApprovalBy='';pdvQuoteId=null;pdvQuoteCustomerId=null;pdvQuoteDiscountPct=0;toast('Venda #'+s.id+' finalizada.');render('pdv');
     setTimeout(()=>askPrintReceipt(s.id,total,received,change),250)
   }catch(e){alert(e.message)}
@@ -558,7 +640,7 @@ async function configuracoes(){
  <div class=panel><h3>🏢 Dados da empresa</h3><div class=formgrid><div class=span2><label>Nome fantasia</label><input id=cfgTrade value="${esc(c.trade_name||'')}"></div><div class=span2><label>Razão social</label><input id=cfgLegal value="${esc(c.legal_name||'')}"></div><div><label>CNPJ / CPF</label><input id=cfgDoc value="${esc(c.doc||'')}"></div><div><label>Inscrição Estadual</label><input id=cfgIe value="${esc(c.ie||'')}"></div><div><label>Telefone</label><input id=cfgPhone value="${esc(c.phone||'')}"></div><div><label>WhatsApp</label><input id=cfgWhatsapp value="${esc(c.whatsapp||'')}"></div><div class=span2><label>E-mail</label><input id=cfgEmail value="${esc(c.email||'')}"></div><div class=span2><label>Endereço</label><input id=cfgAddress value="${esc(c.address||'')}"></div><div><label>Cidade</label><input id=cfgCity value="${esc(c.city||'')}"></div><div><label>UF</label><input id=cfgUf maxlength=2 value="${esc(c.uf||'')}"></div></div><div class=company-logo-config><div class=company-logo-preview id=cfgLogoPreview>${c.logo_data?`<img src="${c.logo_data}" alt="Logomarca">`:'<span>Sem logomarca</span>'}</div><div><b>Logomarca da empresa</b><small>PNG ou JPG • recomendado até 500 KB</small><input id=cfgLogoFile type=file accept="image/png,image/jpeg" style="display:none" onchange=chooseCompanyLogo(this)><button class=secondary onclick="cfgLogoFile.click()">Selecionar imagem</button> <button onclick=removeCompanyLogo()>Remover logo</button><label class=checkline><input id=cfgShowLogoPdv type=checkbox ${c.show_logo_pdv!==false?'checked':''}> Exibir logomarca no PDV</label></div></div></div>
  <div class=panel><h3>🧾 Vendas e PDV</h3><label>Desconto máximo para gerente (%)</label><input id=cfgDiscount type=number min=0 max=100 step=.1 value="${v.max_discount??10}"><label>Mensagem no comprovante</label><textarea id=cfgReceipt rows=3>${esc(v.receipt_message||'Obrigado pela preferência!')}</textarea><label>Mensagem no rodapé do orçamento</label><textarea id=cfgQuoteMsg rows=3>${esc(v.quote_message||'Orçamento sujeito à disponibilidade de estoque e validade informada.')}</textarea><label class=checkline><input id=cfgRequireCash type=checkbox ${v.require_open_cash!==false?'checked':''}> Exigir caixa aberto para realizar vendas</label><label class=checkline><input id=cfgPrint type=checkbox ${v.auto_print?'checked':''}> Imprimir comprovante automaticamente</label></div>
  <div class=panel><h3>📦 Estoque</h3><label>Estoque mínimo padrão</label><input id=cfgMinStock type=number min=0 step=.001 value="${st.default_min??0}"><label class=checkline><input id=cfgNegative type=checkbox ${st.allow_negative?'checked':''}> Permitir estoque negativo</label><label class=checkline><input id=cfgLowAlert type=checkbox ${st.low_stock_alert!==false?'checked':''}> Exibir alertas de estoque baixo</label><div class="alert yellow">Na 2.5 esta regra é aplicada diretamente pelo PDV.</div></div>
- <div class=panel><h3>🖥️ Sistema e segurança</h3><label>Tema</label><select id=cfgTheme><option value=light ${sy.theme!=='dark'?'selected':''}>Claro</option><option value=dark ${sy.theme==='dark'?'selected':''}>Escuro</option></select><label>Nome exibido do sistema</label><input id=cfgSystemName value="${esc(sy.name||'Porto Prime')}"><div class=alert green><b>Porto Prime 4.1.8</b><br>Banco central local, funcionamento offline e acesso em rede local.</div><button class=secondary onclick="showNetworkInfo()">🌐 Ver acesso em rede</button> <button onclick="showLicenseInfo()">🔐 Ver licença</button> <button onclick="render('relatorios')">Abrir Backup e Restauração</button></div>
+ <div class=panel><h3>🖥️ Sistema e segurança</h3><label>Tema</label><select id=cfgTheme><option value=light ${sy.theme!=='dark'?'selected':''}>Claro</option><option value=dark ${sy.theme==='dark'?'selected':''}>Escuro</option></select><label>Nome exibido do sistema</label><input id=cfgSystemName value="${esc(sy.name||'Porto Prime')}"><div class=alert green><b>Porto Prime 4.1.9</b><br>Banco central local, funcionamento offline e acesso em rede local.</div><button class=secondary onclick="showNetworkInfo()">🌐 Ver acesso em rede</button> <button onclick="showLicenseInfo()">🔐 Ver licença</button> <button onclick="render('relatorios')">Abrir Backup e Restauração</button></div>
  <div class="panel porto-support-settings"><h3>✉ Contato e suporte</h3><p class=muted>Fale com a equipe Porto Prime para suporte, dúvidas ou informações comerciais.</p><div class=porto-support-links><a href="mailto:portoprime.gc@proton.me"><span>Contato principal</span><b>portoprime.gc@proton.me</b></a><a href="mailto:portoprime.ce@gmail.com"><span>Contato alternativo</span><b>portoprime.ce@gmail.com</b></a></div></div>
  </div>`
 }
@@ -577,7 +659,7 @@ async function saveSettings(){
 function modal(html){document.body.insertAdjacentHTML('beforeend',`<div class=modalbox id=modal><div class=modalinner>${html}</div></div>`)}function closeModal(){document.getElementById('modal')?.remove()}
 licenseStatus().then(ok=>{if(ok&&token)start().catch(()=>logout())}).catch(e=>showActivation({error:'Não foi possível verificar a licença: '+e.message}));
 
-// Porto Prime 4.1.8 — tabela de preços do catálogo.
+// Porto Prime 4.1.9 — tabela de preços do catálogo.
 let priceTableProducts=[],priceTableMode='retail';
 function pricePromotion(p,today=new Date().toISOString().slice(0,10)){
   if(!(+p.promo>0))return {label:'Sem promoção',active:false};

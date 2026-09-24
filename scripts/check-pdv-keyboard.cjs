@@ -1,0 +1,39 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const nodes={};let focused='';
+const document={activeElement:null,addEventListener(){},querySelectorAll(){return []},querySelector(){return null},getElementById(id){return nodes[id]||null}};
+for(const id of ['pdvSearch','pdvResults','pdvQty','pdvSelectedUnit','pdvCustomer','pdvDiscountMode','pdvDiscount','pdvPaymentMethod','pdvPaymentAmount','pdvFinish','cashReceivedInput','pdvDiscountAmount','pdvTotal','payBox','cashChangeBox','legacyItemsBody','pdvSelectedCode','pdvSelectedTotal','pdvSelectedName','pdvSelectedSub']){
+ nodes[id]={value:'',dataset:{},style:{},textContent:'',innerHTML:'',tagName:id==='pdvCustomer'||id==='pdvDiscountMode'||id==='pdvPaymentMethod'?'SELECT':'INPUT',setAttribute(){},focus(){focused=id;document.activeElement=this},select(){},classList:{toggle(){}}};
+}
+const products=[{id:1,code:'001554',name:'FECHADURA',unit:'UN',stock:10,retail:100,wholesale:0,promo:0},{id:2,code:'001425',name:'FECHADURA GRANDE',unit:'UN',stock:10,retail:120,wholesale:0,promo:0}];
+const context={window:{},document,localStorage:{},fetch:()=>new Promise(()=>{}),setTimeout(){},clearTimeout(){},setInterval(){},clearInterval(){},console,Intl,URL};
+vm.createContext(context);vm.runInContext(fs.readFileSync('public/app.js','utf8'),context);
+context.toast=()=>{};context.api=async url=>url.startsWith('/products/search')?products:[];context.ensureManagerApproval=async()=>true;
+for(const id of Object.keys(nodes))if(id!=='pdvDiscountAmount')context[id]=nodes[id];
+vm.runInContext("cart=[];payments=[{method:'Dinheiro',amount:0,touched:false}]",context);
+async function key(stage,value){if(value!=null)nodes[{qty:'pdvQty',unit:'pdvSelectedUnit',customer:'pdvCustomer',mode:'pdvDiscountMode',discount:'pdvDiscount',payment:'pdvPaymentMethod',paymentAmount:'pdvPaymentAmount'}[stage]].value=String(value);const el=nodes[{qty:'pdvQty',unit:'pdvSelectedUnit',customer:'pdvCustomer',mode:'pdvDiscountMode',discount:'pdvDiscount',payment:'pdvPaymentMethod',paymentAmount:'pdvPaymentAmount'}[stage]];let prevented=false;await context.pdvFieldEnter({key:'Enter',currentTarget:el,preventDefault(){prevented=true}},stage);assert(prevented)}
+(async()=>{
+ nodes.pdvSearch.value='fechadura';context.pdvShowResults(products);context.pdvSearchKey({key:'ArrowDown',preventDefault(){}});
+ await context.pdvEnter();assert.equal(vm.runInContext('cart[0].product_id',context),2);assert.equal(focused,'pdvQty');
+ vm.runInContext('cart=[];pdvSelected=-1',context);
+ nodes.pdvSearch.value='fechadura';await context.pdvEnter();assert.equal(focused,'pdvQty');assert.equal(vm.runInContext('cart.length',context),1);
+ await key('qty',2);assert.equal(focused,'pdvSelectedUnit');assert.equal(vm.runInContext('cart[0].qty',context),2);
+ await key('unit',100);assert.equal(focused,'pdvCustomer');
+ await key('customer');assert.equal(focused,'pdvDiscountMode');
+ nodes.pdvDiscountMode.value='AMOUNT';context.pdvDiscountModeChanged();await key('mode');assert.equal(focused,'pdvDiscount');
+ await key('discount',20);assert.equal(focused,'pdvPaymentMethod');assert.equal(context.pdvDiscountAmount(),20);assert.equal(context.pdvDiscountPct(),10);assert.equal(context.currentPdvTotal(),180);
+ await key('payment');assert.equal(focused,'pdvPaymentAmount');
+ await key('paymentAmount',180);assert.equal(focused,'cashReceivedInput');
+ nodes.pdvDiscountMode.value='PERCENT';context.pdvDiscountModeChanged();nodes.pdvDiscount.value='10';await context.requestPdvDiscount(10);assert.equal(context.pdvDiscountAmount(),20);
+ nodes.pdvDiscountMode.value='AMOUNT';context.pdvDiscountModeChanged();assert.equal(await context.requestPdvDiscount(201),false);assert.equal(context.pdvDiscountAmount(),0);
+ context.api=async url=>url==='/cash/current'?{operator:'Administrador'}:url==='/customers'?[]:url==='/settings'?{company:{}}:products;
+ vm.runInContext("me={name:'Administrador',role:'Administrador'}",context);context.window._pdvKeysInstalled=true;
+ const html=await context.pdv();
+ assert(html.indexOf('id="pdvQty"')<html.indexOf('id="pdvSelectedUnit"'));
+ assert(html.indexOf('id="pdvSelectedUnit"')<html.indexOf('id="pdvCustomer"'));
+ assert(html.indexOf('id="pdvCustomer"')<html.indexOf('id="pdvDiscountMode"'));
+ assert(html.indexOf('id="pdvDiscountMode"')<html.indexOf('id="pdvDiscount"'));
+ assert(html.indexOf('id="pdvDiscount"')<html.indexOf('id="payBox"'));
+ assert(html.includes('id="pdvFinish"'));
+ assert.match(fs.readFileSync('public/app.js','utf8'),/discount_percent,\s*approval_token/);
+ console.log('OK: teclado do PDV, preço editável, cliente, desconto em R$ e %, pagamentos e limites.');
+})().catch(e=>{console.error(e);process.exitCode=1});
