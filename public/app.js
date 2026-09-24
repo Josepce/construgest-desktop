@@ -180,7 +180,7 @@ async function pdv(){
       <button class="legacy-finish" onclick="finishSale()">F12 • FINALIZAR VENDA</button>
     </div>
     <div class="legacy-cash open"><span>▣</span><b>CAIXA ABERTO</b><strong>${esc(cash.operator||me.name)}</strong></div>
-    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span id="pdvNetworkStatus">● Servidor conectado</span><span>Porto Prime 4.1.7</span></div>
+    <div class="legacy-status"><span>Operador: ${esc(me.name)}</span><span>Caixa: ABERTO</span><span id="pdvNetworkStatus">● Servidor conectado</span><span>Porto Prime 4.1.8</span></div>
   </div>`
 }
 function installPdvShortcuts(){
@@ -344,7 +344,7 @@ async function novoOrcamento(){
   setTimeout(()=>{let v=document.getElementById('qValid');if(v&&!v.value)v.value=iso(valid);fillQuoteProductPrice();updateQuoteTotals()},0);
   return `<div class="quote-page"><div class="quote-heading"><div class=quote-brand>${cfg.company?.logo_data?`<img class=quote-company-logo src="${cfg.company.logo_data}" alt="Logo">`:''}<div><span class=eyebrow>ORÇAMENTOS</span><h2>▤ Novo Orçamento</h2><p>Cadastre os produtos e gere um orçamento para seu cliente.</p></div></div><button class=secondary onclick="render('orcamentos-salvos')">▥ Orçamentos Salvos</button></div>
   <div class="quote-panel"><div class="quote-customer-grid"><div class="field span2"><label>Cliente</label><select id=qCustomer onchange=fillQuoteCustomer()><option value="">Consumidor Final</option>${c.map(x=>`<option value=${x.id}>${esc(x.name)}</option>`).join('')}</select></div><div class=field><label>CPF/CNPJ</label><input id=qDoc readonly placeholder="000.000.000-00"></div><div class=field><label>Telefone</label><input id=qPhone readonly placeholder="(00) 00000-0000"></div><div class=field><label>Data do Orçamento</label><input type=date value="${iso(today)}" readonly></div><div class=field><label>Validade</label><input id=qValid type=date></div><div class=field><label>Vendedor</label><input value="${esc(me.name)}" readonly></div></div>
-  <div class=quote-add><div class="field quote-product"><label for=qProductSearch>Buscar produto</label><div class="quote-product-picker"><input id=qProductSearch type=search autocomplete=off placeholder="Digite nome, código ou EAN..." oninput="filterQuoteProducts()" onkeydown="quoteSearchKey(event)" onfocus="filterQuoteProducts(true)" onblur="setTimeout(hideQuoteProductSuggestions,150)" role=combobox aria-autocomplete=list aria-expanded=false aria-controls=qProductSuggestions aria-describedby=qProductSearchHint><input id=qProduct type=hidden aria-hidden=true><div id=qProductSuggestions class="quote-product-suggestions"></div></div><small id=qProductSearchHint class=muted role=status aria-live=polite>Digite nome, código ou EAN. Enter adiciona o resultado destacado.</small></div><div class=field><label>Quantidade</label><input id=qQty type=number min=.001 step=.001 value=1 onkeydown="if(event.key==='Enter'){event.preventDefault();addQuoteItemPro()}"></div><div class=field><label>Preço Unit. (R$)</label><input id=qPrice type=number min=0 step=.01 placeholder="Automático" onkeydown="if(event.key==='Enter'){event.preventDefault();addQuoteItemPro()}"></div><div class=field><label>Desconto (%)</label><input id=qItemDiscount type=number min=0 max=100 step=.01 value=0 onkeydown="if(event.key==='Enter'){event.preventDefault();addQuoteItemPro()}"></div><button class=primary onclick=addQuoteItemPro()>▣ Adicionar</button></div>
+  <div class=quote-add><div class="field quote-product"><label for=qProductSearch>Buscar produto</label><div class="quote-product-picker"><input id=qProductSearch type=search autocomplete=off placeholder="Digite nome, código ou EAN..." oninput="filterQuoteProducts()" onkeydown="quoteSearchKey(event)" onfocus="filterQuoteProducts(true)" onblur="setTimeout(hideQuoteProductSuggestions,150)" role=combobox aria-autocomplete=list aria-expanded=false aria-controls=qProductSuggestions aria-describedby=qProductSearchHint><input id=qProduct type=hidden aria-hidden=true><div id=qProductSuggestions class="quote-product-suggestions"></div></div><small id=qProductSearchHint class=muted role=status aria-live=polite>Digite nome, código ou EAN. Enter seleciona o produto.</small></div><div class=field><label>Quantidade</label><input id=qQty type=number min=.001 step=.001 value=1 onkeydown="quoteFieldKey(event,'qPrice')"></div><div class=field><label>Preço Unit. (R$)</label><input id=qPrice type=number min=0 step=.01 placeholder="Automático" onkeydown="quoteFieldKey(event,'qItemDiscount')"></div><div class=field><label>Desconto (%)</label><input id=qItemDiscount type=number min=0 max=100 step=.01 value=0 onkeydown="quoteFieldKey(event)"></div><button class=primary onclick=addQuoteItemPro()>▣ Adicionar</button></div>
   <div id=qCart>${quoteCartProHtml()}</div>
   <div class=quote-bottom><div class=field><label>Observações</label><textarea id=qNotes rows=6 placeholder="Digite observações sobre este orçamento..."></textarea></div><div class=quote-totals><h3>Totais do Orçamento</h3><div><span>Total de Itens:</span><b id=qTotalItems>0</b></div><div><span>Total Bruto:</span><b id=qGross>${money(0)}</b></div><div><span>Desconto Total:</span><b id=qDiscountTotal>${money(0)}</b></div><div class=quote-grand><span>TOTAL:</span><strong id=qGrand>${money(0)}</strong></div></div></div>
   <div class=quote-footer><button onclick=clearQuote()>↻ Limpar</button><div><button class=primary onclick="saveQuotePro(false)">▣ Salvar Orçamento</button> <button class=secondary onclick="saveQuotePro(true)">▣ Salvar e Imprimir</button></div></div></div></div>`
@@ -372,15 +372,22 @@ function filterQuoteProducts(forceOpen=false){
   box.innerHTML=visible.map((p,n)=>`<button type="button" role="option" aria-selected="${n===quoteProductCursor}" class="quote-product-option ${n===quoteProductCursor?'is-active':''}" onmousedown="event.preventDefault()" onclick="selectQuoteProduct(${p.id})"><span><b>${esc(p.code)} — ${esc(p.name)}</b><small>${esc(p.category||'Produto')}${p.brand?' • '+esc(p.brand):''} • Estoque: ${num(p.stock)} ${esc(p.unit||'UN')}</small></span><strong>${money(p.retail||0)}</strong></button>`).join('')||`<div class="quote-product-empty">${term?'Nenhum produto encontrado.':'Digite nome, código ou EAN.'}</div>`;
   box.style.display=(forceOpen||document.activeElement===input)&&visible.length?'block':'none';
   input.setAttribute('aria-expanded',box.style.display==='block'?'true':'false');
-  document.getElementById('qProductSearchHint').textContent=term?(result.matches.length?`${result.matches.length} resultado(s). Enter adiciona o destacado; setas mudam a escolha.`:'Nenhum produto encontrado. Tente outro nome ou código.'):'Digite nome, código ou EAN. Enter adiciona o resultado destacado.';
+  document.getElementById('qProductSearchHint').textContent=term?(result.matches.length?`${result.matches.length} resultado(s). Enter seleciona o destacado; setas mudam a escolha.`:'Nenhum produto encontrado. Tente outro nome ou código.'):'Digite nome, código ou EAN. Enter seleciona o produto.';
   fillQuoteProductPrice();
 }
 function selectQuoteProduct(id){
   const p=(window._quoteProducts||[]).find(x=>x.id===+id),input=document.getElementById('qProductSearch'),hidden=document.getElementById('qProduct');
   if(!p||!input||!hidden)return;
-  hidden.value=String(p.id);input.value=`${p.code} — ${p.name}`;hideQuoteProductSuggestions();fillQuoteProductPrice();document.getElementById('qQty')?.focus();
+  hidden.value=String(p.id);input.value=`${p.code} — ${p.name}`;hideQuoteProductSuggestions();fillQuoteProductPrice();
+  const qty=document.getElementById('qQty');qty?.focus();qty?.select();
 }
 function hideQuoteProductSuggestions(){const box=document.getElementById('qProductSuggestions'),input=document.getElementById('qProductSearch');if(box)box.style.display='none';input?.setAttribute('aria-expanded','false')}
+function quoteFieldKey(event,nextId){
+  if(event.key!=='Enter')return;
+  event.preventDefault();
+  if(!nextId)return addQuoteItemPro();
+  const next=document.getElementById(nextId);next?.focus();next?.select();
+}
 function quoteSearchKey(event){
   const input=document.getElementById('qProductSearch'),hidden=document.getElementById('qProduct');
   if(event.key==='Escape'){hideQuoteProductSuggestions();return}
@@ -397,7 +404,7 @@ function quoteSearchKey(event){
     input.setAttribute('aria-expanded','true');hidden.value=String(matches[quoteProductCursor].id);fillQuoteProductPrice();return;
   }
   const p=selectionKept?chosen:matches[quoteProductCursor]||matches[0];
-  hidden.value=String(p.id);fillQuoteProductPrice();addQuoteItemPro();
+  selectQuoteProduct(p.id);
 }
 
 function fillQuoteProductPrice(){let p=_quoteProducts?.find(x=>x.id===+document.getElementById('qProduct')?.value),e=document.getElementById('qPrice');if(e)e.value=p?Number(p.retail||0).toFixed(2):''}
@@ -413,6 +420,7 @@ function addQuoteItemPro(){
   qQty.value=1;qItemDiscount.value=0;
   const input=document.getElementById('qProductSearch'),hidden=document.getElementById('qProduct');
   if(input)input.value='';if(hidden)hidden.value='';hideQuoteProductSuggestions();fillQuoteProductPrice();
+  const hint=document.getElementById('qProductSearchHint');if(hint)hint.textContent='Digite nome, código ou EAN. Enter seleciona o produto.';
   refreshQuoteCart();input?.focus();
 }
 
@@ -550,7 +558,7 @@ async function configuracoes(){
  <div class=panel><h3>🏢 Dados da empresa</h3><div class=formgrid><div class=span2><label>Nome fantasia</label><input id=cfgTrade value="${esc(c.trade_name||'')}"></div><div class=span2><label>Razão social</label><input id=cfgLegal value="${esc(c.legal_name||'')}"></div><div><label>CNPJ / CPF</label><input id=cfgDoc value="${esc(c.doc||'')}"></div><div><label>Inscrição Estadual</label><input id=cfgIe value="${esc(c.ie||'')}"></div><div><label>Telefone</label><input id=cfgPhone value="${esc(c.phone||'')}"></div><div><label>WhatsApp</label><input id=cfgWhatsapp value="${esc(c.whatsapp||'')}"></div><div class=span2><label>E-mail</label><input id=cfgEmail value="${esc(c.email||'')}"></div><div class=span2><label>Endereço</label><input id=cfgAddress value="${esc(c.address||'')}"></div><div><label>Cidade</label><input id=cfgCity value="${esc(c.city||'')}"></div><div><label>UF</label><input id=cfgUf maxlength=2 value="${esc(c.uf||'')}"></div></div><div class=company-logo-config><div class=company-logo-preview id=cfgLogoPreview>${c.logo_data?`<img src="${c.logo_data}" alt="Logomarca">`:'<span>Sem logomarca</span>'}</div><div><b>Logomarca da empresa</b><small>PNG ou JPG • recomendado até 500 KB</small><input id=cfgLogoFile type=file accept="image/png,image/jpeg" style="display:none" onchange=chooseCompanyLogo(this)><button class=secondary onclick="cfgLogoFile.click()">Selecionar imagem</button> <button onclick=removeCompanyLogo()>Remover logo</button><label class=checkline><input id=cfgShowLogoPdv type=checkbox ${c.show_logo_pdv!==false?'checked':''}> Exibir logomarca no PDV</label></div></div></div>
  <div class=panel><h3>🧾 Vendas e PDV</h3><label>Desconto máximo para gerente (%)</label><input id=cfgDiscount type=number min=0 max=100 step=.1 value="${v.max_discount??10}"><label>Mensagem no comprovante</label><textarea id=cfgReceipt rows=3>${esc(v.receipt_message||'Obrigado pela preferência!')}</textarea><label>Mensagem no rodapé do orçamento</label><textarea id=cfgQuoteMsg rows=3>${esc(v.quote_message||'Orçamento sujeito à disponibilidade de estoque e validade informada.')}</textarea><label class=checkline><input id=cfgRequireCash type=checkbox ${v.require_open_cash!==false?'checked':''}> Exigir caixa aberto para realizar vendas</label><label class=checkline><input id=cfgPrint type=checkbox ${v.auto_print?'checked':''}> Imprimir comprovante automaticamente</label></div>
  <div class=panel><h3>📦 Estoque</h3><label>Estoque mínimo padrão</label><input id=cfgMinStock type=number min=0 step=.001 value="${st.default_min??0}"><label class=checkline><input id=cfgNegative type=checkbox ${st.allow_negative?'checked':''}> Permitir estoque negativo</label><label class=checkline><input id=cfgLowAlert type=checkbox ${st.low_stock_alert!==false?'checked':''}> Exibir alertas de estoque baixo</label><div class="alert yellow">Na 2.5 esta regra é aplicada diretamente pelo PDV.</div></div>
- <div class=panel><h3>🖥️ Sistema e segurança</h3><label>Tema</label><select id=cfgTheme><option value=light ${sy.theme!=='dark'?'selected':''}>Claro</option><option value=dark ${sy.theme==='dark'?'selected':''}>Escuro</option></select><label>Nome exibido do sistema</label><input id=cfgSystemName value="${esc(sy.name||'Porto Prime')}"><div class=alert green><b>Porto Prime 4.1.7</b><br>Banco central local, funcionamento offline e acesso em rede local.</div><button class=secondary onclick="showNetworkInfo()">🌐 Ver acesso em rede</button> <button onclick="showLicenseInfo()">🔐 Ver licença</button> <button onclick="render('relatorios')">Abrir Backup e Restauração</button></div>
+ <div class=panel><h3>🖥️ Sistema e segurança</h3><label>Tema</label><select id=cfgTheme><option value=light ${sy.theme!=='dark'?'selected':''}>Claro</option><option value=dark ${sy.theme==='dark'?'selected':''}>Escuro</option></select><label>Nome exibido do sistema</label><input id=cfgSystemName value="${esc(sy.name||'Porto Prime')}"><div class=alert green><b>Porto Prime 4.1.8</b><br>Banco central local, funcionamento offline e acesso em rede local.</div><button class=secondary onclick="showNetworkInfo()">🌐 Ver acesso em rede</button> <button onclick="showLicenseInfo()">🔐 Ver licença</button> <button onclick="render('relatorios')">Abrir Backup e Restauração</button></div>
  <div class="panel porto-support-settings"><h3>✉ Contato e suporte</h3><p class=muted>Fale com a equipe Porto Prime para suporte, dúvidas ou informações comerciais.</p><div class=porto-support-links><a href="mailto:portoprime.gc@proton.me"><span>Contato principal</span><b>portoprime.gc@proton.me</b></a><a href="mailto:portoprime.ce@gmail.com"><span>Contato alternativo</span><b>portoprime.ce@gmail.com</b></a></div></div>
  </div>`
 }
@@ -569,7 +577,7 @@ async function saveSettings(){
 function modal(html){document.body.insertAdjacentHTML('beforeend',`<div class=modalbox id=modal><div class=modalinner>${html}</div></div>`)}function closeModal(){document.getElementById('modal')?.remove()}
 licenseStatus().then(ok=>{if(ok&&token)start().catch(()=>logout())}).catch(e=>showActivation({error:'Não foi possível verificar a licença: '+e.message}));
 
-// Porto Prime 4.1.7 — tabela de preços do catálogo.
+// Porto Prime 4.1.8 — tabela de preços do catálogo.
 let priceTableProducts=[],priceTableMode='retail';
 function pricePromotion(p,today=new Date().toISOString().slice(0,10)){
   if(!(+p.promo>0))return {label:'Sem promoção',active:false};
@@ -609,4 +617,3 @@ async function printPriceTable(){
     w.document.close();w.focus();
   }catch(e){w.close();toast(e.message)}
 }
-
