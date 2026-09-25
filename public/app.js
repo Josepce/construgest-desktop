@@ -33,7 +33,7 @@ async function togglePasswordRecovery(){
 }
 async function savePasswordRecovery(){
   const email=document.getElementById('recoveryEmail')?.value||'',machineId=document.getElementById('recoveryMachine')?.value||'',p=document.getElementById('recoveryPassword')?.value||'',p2=document.getElementById('recoveryPassword2')?.value||'',msg=document.getElementById('recoveryMsg');
-  if(p.length<8){if(msg){msg.className='danger';msg.textContent='Use pelo menos 8 caracteres.'}return}
+  if(p.length<6){if(msg){msg.className='danger';msg.textContent='Use pelo menos 6 caracteres.'}return}
   if(p!==p2){if(msg){msg.className='danger';msg.textContent='As senhas não conferem.'}return}
   try{
     if(msg){msg.className='muted';msg.textContent='Redefinindo senha...'}
@@ -792,10 +792,12 @@ licenseStatus().then(async ok=>{
   try{
     const r=await fetch('/api/auth/recovery-info',{cache:'no-store'});
     const j=await r.json().catch(()=>({}));
-    if(r.ok&&j.email==='master'){
-      if(loginEmail)loginEmail.value='master';
-      const box=document.getElementById('passwordRecoveryBox');
-      if(box?.classList.contains('hidden'))await togglePasswordRecovery();
+    if(r.ok){
+      if(loginEmail)loginEmail.value=j.email||'master';
+      const email=document.getElementById('recoveryEmail'),machine=document.getElementById('recoveryMachine'),msg=document.getElementById('recoveryMsg');
+      if(email)email.value=j.email||'master';
+      if(machine)machine.value=j.machineId||'';
+      if(msg){msg.className='ok';msg.textContent='Defina abaixo a nova senha de acesso.'}
     }
   }catch{}
   if(token)start().catch(()=>logout());
