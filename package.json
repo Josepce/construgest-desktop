@@ -1,6 +1,6 @@
 {
   "name": "construgest-desktop-standalone",
-  "version": "4.1.14",
+  "version": "4.1.15",
   "private": true,
   "type": "module",
   "scripts": {
