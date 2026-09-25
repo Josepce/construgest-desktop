@@ -787,7 +787,19 @@ async function saveSettings(){
 }
 
 function modal(html){document.body.insertAdjacentHTML('beforeend',`<div class=modalbox id=modal><div class=modalinner>${html}</div></div>`)}function closeModal(){document.getElementById('modal')?.remove()}
-licenseStatus().then(ok=>{if(ok&&token)start().catch(()=>logout())}).catch(e=>showActivation({error:'Não foi possível verificar a licença: '+e.message}));
+licenseStatus().then(async ok=>{
+  if(!ok)return;
+  try{
+    const r=await fetch('/api/auth/recovery-info',{cache:'no-store'});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok&&j.email==='master'){
+      if(loginEmail)loginEmail.value='master';
+      const box=document.getElementById('passwordRecoveryBox');
+      if(box?.classList.contains('hidden'))await togglePasswordRecovery();
+    }
+  }catch{}
+  if(token)start().catch(()=>logout());
+}).catch(e=>showActivation({error:'Não foi possível verificar a licença: '+e.message}));
 
 // Porto Prime 4.1.12 — tabela de preços do catálogo.
 let priceTableProducts=[],priceTableMode='retail';
