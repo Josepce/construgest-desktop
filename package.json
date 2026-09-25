@@ -1,6 +1,6 @@
 {
   "name": "construgest-desktop-standalone",
-  "version": "4.4.1",
+  "version": "4.4.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -22,7 +22,8 @@
     "check:server": "node scripts/check-server-integrity.cjs",
     "check:stock-intelligence": "node scripts/check-stock-intelligence.mjs",
     "check:seller-performance": "node scripts/check-seller-performance.mjs",
-    "check:data-directory": "node scripts/check-data-directory.cjs"
+    "check:data-directory": "node scripts/check-data-directory.cjs",
+    "check:password-recovery": "node scripts/check-password-recovery.cjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
