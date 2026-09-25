@@ -15,9 +15,9 @@ const required=[
   ["cabeçalhos de segurança",server.includes("X-Content-Type-Options")&&server.includes("X-Frame-Options")],
   ["motor único de vendas",server.includes("async function finalizeSaleCore")&&server.includes("/api/sales-v42")&&server.includes("saleRoute")],
   ["integridade de backup",server.includes("integrity_sha256")&&server.includes("backupDigest")],
-  ["versão 4.2.0",index.includes("4.2.0")]
+  ["versão 4.2.1",index.includes("4.2.1")]
 ];
-for(const [name,ok] of required)if(!ok)throw Error('Falha de estabilidade 4.2.0: '+name);
+for(const [name,ok] of required)if(!ok)throw Error('Falha de estabilidade 4.2.1: '+name);
 
 const db=new PGlite();
 await db.exec(schema);
@@ -26,5 +26,5 @@ if(!cols.rows.some(x=>x.column_name==='force_change_password'))throw Error('Colu
 const mig=await db.query('SELECT max(version) version FROM schema_migrations');
 if(Number(mig.rows[0].version)!==420)throw Error('Versão de schema 420 não aplicada.');
 
-console.log('OK: segurança e estabilidade Porto Prime 4.2.0 validadas.');
+console.log('OK: segurança e estabilidade Porto Prime 4.2.1 validadas.');
 await db.close();
