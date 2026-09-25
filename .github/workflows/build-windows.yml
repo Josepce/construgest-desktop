@@ -70,6 +70,7 @@ jobs:
           node scripts/check-management-report.mjs
           node scripts/check-stability-420.mjs
           node scripts/check-server-integrity.cjs
+          node scripts/check-stock-intelligence.mjs
 
       - name: Gerar EXE portatil e instalador
         run: npx electron-builder --win portable nsis --x64 --publish never
