@@ -11,6 +11,21 @@ function copyMachineId(){let id=document.getElementById('licenseMachineId')?.tex
 async function activateLicense(){let key=document.getElementById('licenseKeyInput')?.value.trim();if(!key)return licenseMsg.textContent='Cole a chave de licença.';try{let r=await fetch('/api/license/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({licenseKey:key})}),j=await r.json();if(!r.ok)throw Error(j.error||'Licença inválida.');licenseMsg.className='ok';licenseMsg.textContent='Licença ativada com sucesso. Abrindo Porto Prime...';setTimeout(()=>location.reload(),700)}catch(e){licenseMsg.className='danger';licenseMsg.textContent=e.message}}
 async function startTrial(){let btn=document.getElementById('trialStartButton'),st=document.getElementById('trialStatus');try{btn.disabled=true;btn.textContent='INICIANDO...';let r=await fetch('/api/license/trial/start',{method:'POST',headers:{'Content-Type':'application/json'}}),j=await r.json();if(!r.ok)throw Object.assign(Error(j.error||'Não foi possível iniciar a demonstração.'),{data:j});st.className='ok';st.textContent='Demonstração ativada. Abrindo Porto Prime...';setTimeout(()=>location.reload(),700)}catch(e){st.className='danger';st.textContent=e.message;showActivation(e.data||{available:true,error:e.message,machineId:licenseMachineId?.textContent})}}
 async function doLogin(e){e.preventDefault();try{loginMsg.textContent='';let j=await api('/auth/login',{method:'POST',body:JSON.stringify({email:loginEmail.value,password:loginPass.value})});token=j.token;me=j.user;localStorage.cg42token=token;if(me.must_change_password)return initialPasswordSetup();start()}catch(x){loginMsg.textContent=x.message}}
+async function openPasswordRecovery(){
+  try{
+    let r=await api('/auth/recovery-info');
+    modal(`<h3>Recuperar acesso administrativo</h3><div class="alert">Esta recuperação funciona somente neste computador e não apaga nenhum dado.</div><label>E-mail do administrador</label><input id=recoveryEmail value="${esc(r.email||'admin@construgest.local')}" autocomplete=username><label>ID deste computador</label><input id=recoveryMachine value="${esc(r.machineId||'')}" readonly><label>Nova senha</label><input id=recoveryPassword type=password autocomplete=new-password placeholder="Mínimo de 8 caracteres"><label>Confirmar nova senha</label><input id=recoveryPassword2 type=password autocomplete=new-password placeholder="Digite novamente"><div style="margin-top:18px"><button class=primary onclick=savePasswordRecovery()>REDEFINIR SENHA</button> <button onclick=closeModal()>Cancelar</button></div>`);
+  }catch(e){loginMsg.textContent=e.message}
+}
+async function savePasswordRecovery(){
+  let email=document.getElementById('recoveryEmail')?.value||'',machineId=document.getElementById('recoveryMachine')?.value||'',p=document.getElementById('recoveryPassword')?.value||'',p2=document.getElementById('recoveryPassword2')?.value||'';
+  if(p.length<8)return toast('Use pelo menos 8 caracteres.');
+  if(p!==p2)return toast('As senhas não conferem.');
+  try{
+    await api('/auth/recover-admin',{method:'POST',body:JSON.stringify({email,machineId,password:p})});
+    closeModal();loginEmail.value=email;loginPass.value='';loginMsg.textContent='Senha redefinida. Digite a nova senha e entre normalmente.';loginPass.focus();
+  }catch(e){toast(e.message)}
+}
 function initialPasswordSetup(){
   if(document.getElementById('modal'))return;
   modal(`<h3>Crie sua senha administrativa</h3><div class="alert orange">Por segurança, a senha padrão deve ser substituída antes de usar o Porto Prime.</div><label>Nova senha</label><input id=initialPassword type=password autocomplete=new-password placeholder="Mínimo de 8 caracteres"><label>Confirmar senha</label><input id=initialPassword2 type=password autocomplete=new-password placeholder="Digite novamente"><div style="margin-top:18px"><button class=primary onclick=saveInitialPassword()>SALVAR NOVA SENHA</button></div>`);
