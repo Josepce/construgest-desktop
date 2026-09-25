@@ -1,6 +1,6 @@
 {
   "name": "construgest-desktop-standalone",
-  "version": "4.1.16",
+  "version": "4.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,7 +17,8 @@
     "build:release": "npm run check:critical && npm run check:trial && npm run check:products && npm run check:quotes && npm run build:portable && npm run build:setup && npm run build:update",
     "check:products": "node scripts/check-products.mjs",
     "check:quotes": "node scripts/check-quote-search.cjs",
-    "check:reports": "node scripts/check-management-report.mjs"
+    "check:reports": "node scripts/check-management-report.mjs",
+    "check:stability": "node scripts/check-stability-420.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
