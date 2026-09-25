@@ -354,9 +354,54 @@ async function autoBackupIfDue(){try{let files=backupFiles().filter(x=>x.name.in
 app.get('/api/backup/export',auth,roles('Administrador'),async(req,res)=>{try{res.json(await buildLogicalBackup('DOWNLOAD'))}catch(e){res.status(500).json({error:'Falha ao gerar backup: '+e.message})}});
 app.get('/api/backup/status',auth,roles('Administrador'),async(req,res)=>{try{let files=backupFiles();res.json({automatic:true,interval_hours:24,retention:30,total:files.length,last:files[0]||null,files:files.slice(0,10)})}catch(e){res.status(500).json({error:'Falha ao consultar backups: '+e.message})}});
 app.post('/api/backup/create',auth,roles('Administrador'),async(req,res)=>{try{let out=await saveLogicalBackup('MANUAL');await audit(pool,req.user.id,'Backup manual criado',out.name);res.json({ok:true,name:out.name,size:out.size,created_at:out.created_at,summary:out.summary})}catch(e){res.status(500).json({error:'Falha ao salvar backup: '+e.message})}});
-app.post('/api/backup/restore',auth,roles('Administrador'),async(req,res)=>{try{let b=req.body;if(!b||b.format!==BACKUP_FORMAT||!b.tables)throw Error('Arquivo de backup inválido.');if(b.integrity_sha256&&b.integrity_sha256!==backupDigest(b))throw Error('A integridade do backup não pôde ser confirmada. O arquivo pode ter sido alterado ou corrompido.');if(!Array.isArray(b.tables.users)||!Array.isArray(b.tables.products))throw Error('Backup incompleto: tabelas essenciais ausentes.');for(const key of Object.keys(b.tables))if(!BACKUP_TABLES.includes(key))throw Error('Backup contém tabela não autorizada: '+key);let safety=await saveLogicalBackup('PRE-RESTORE');let result=await tx(async c=>{let allowed={};for(const t of BACKUP_TABLES){let q=await c.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1",[t]);allowed[t]=new Set(q.rows.map(x=>x.column_name))}await c.query(`TRUNCATE TABLE ${[...BACKUP_TABLES].reverse().join(',')} RESTART IDENTITY CASCADE`);for(const t of BACKUP_TABLES){let rows=Array.isArray(b.tables[t])?b.tables[t]:[];for(const row of rows){let cols=Object.keys(row);if(cols.some(k=>!allowed[t].has(k)))throw Error('Backup contém coluna não autorizada em '+t);if(!cols.length)continue;let vals=cols.map(k=>row[k]),ps=cols.map((_,i)=>'
+app.post('/api/backup/restore',auth,roles('Administrador'),async(req,res)=>{try{
+  let b=req.body;
+  if(!b||b.format!==BACKUP_FORMAT||!b.tables)throw Error('Arquivo de backup inválido.');
+  if(b.integrity_sha256&&b.integrity_sha256!==backupDigest(b))throw Error('A integridade do backup não pôde ser confirmada. O arquivo pode ter sido alterado ou corrompido.');
+  if(!Array.isArray(b.tables.users)||!Array.isArray(b.tables.products))throw Error('Backup incompleto: tabelas essenciais ausentes.');
+  for(const key of Object.keys(b.tables))if(!BACKUP_TABLES.includes(key))throw Error('Backup contém tabela não autorizada: '+key);
+  let safety=await saveLogicalBackup('PRE-RESTORE');
+  let result=await tx(async c=>{
+    let allowed={};
+    for(const t of BACKUP_TABLES){
+      let q=await c.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1",[t]);
+      allowed[t]=new Set(q.rows.map(x=>x.column_name));
+    }
+    await c.query(`TRUNCATE TABLE ${[...BACKUP_TABLES].reverse().join(',')} RESTART IDENTITY CASCADE`);
+    for(const t of BACKUP_TABLES){
+      let rows=Array.isArray(b.tables[t])?b.tables[t]:[];
+      for(const row of rows){
+        let cols=Object.keys(row);
+        if(cols.some(k=>!allowed[t].has(k)))throw Error('Backup contém coluna não autorizada em '+t);
+        if(!cols.length)continue;
+        let vals=cols.map(k=>row[k]);
+        let ps=cols.map((_,i)=>'$'+(i+1)).join(',');
+        await c.query(`INSERT INTO ${t} (${cols.join(',')}) VALUES (${ps})`,vals);
+      }
+      if(rows.length){
+        try{await c.query(`SELECT setval(pg_get_serial_sequence('${t}','id'),COALESCE((SELECT max(id) FROM ${t}),1),true)`)}catch{}
+      }
+    }
+    return {ok:true};
+  });
+  await audit(pool,req.user.id,'Backup restaurado',safety.name);
+  res.json({...result,safety_backup:safety.name});
+}catch(e){
+  res.status(400).json({error:'Não foi possível restaurar: '+e.message});
+}});
+
 app.use('/api',(req,res)=>res.status(404).json({error:'Rota não encontrada.'}));
-async function boot(){await initDb();let n=+(await pool.query('SELECT count(*) n FROM users')).rows[0].n;if(!n){let h=await bcrypt.hash('Admin@123',12);await pool.query("INSERT INTO users(name,email,password_hash,role,force_change_password) VALUES('Administrador','admin@construgest.local',$1,'Administrador',true)",[h]);await pool.query("INSERT INTO customers(name,type) VALUES('Consumidor Final','Consumidor')");await pool.query("INSERT INTO products(code,name,brand,category,unit,stock,min_stock,max_stock,cost,retail,wholesale,wholesale_min,promo) VALUES ('001','Cimento 50kg','Exemplo','Cimento','SC',35,10,80,28,39.90,36,10,34.90),('002','Torneira Jardim','Krona','Hidráulica','UN',8,10,50,2.10,4.99,4.20,10,3.99),('003','Lâmpada LED 9W','Exemplo','Elétrica','UN',80,20,120,2.20,3.50,3.10,20,2.99)")};app.listen(PORT,HOST,()=>{console.log(`Porto Prime 4.2.0 em http://${HOST}:${PORT}`);setImmediate(()=>autoBackupIfDue())});setInterval(autoBackupIfDue,60*60*1000).unref?.()}boot().catch(e=>{console.error(e);process.exit(1)});
-+(i+1)).join(',');await c.query(`INSERT INTO ${t} (${cols.join(',')}) VALUES (${ps})`,vals)}if(rows.length){try{await c.query(`SELECT setval(pg_get_serial_sequence('${t}','id'),COALESCE((SELECT max(id) FROM ${t}),1),true)`)}catch{}}}return {ok:true}});await audit(pool,req.user.id,'Backup restaurado',safety.name);res.json({...result,safety_backup:safety.name})}catch(e){res.status(400).json({error:'Não foi possível restaurar: '+e.message})}});
-app.use('/api',(req,res)=>res.status(404).json({error:'Rota não encontrada.'}));
-async function boot(){await initDb();let n=+(await pool.query('SELECT count(*) n FROM users')).rows[0].n;if(!n){let h=await bcrypt.hash('Admin@123',12);await pool.query("INSERT INTO users(name,email,password_hash,role) VALUES('Administrador','admin@construgest.local',$1,'Administrador')",[h]);await pool.query("INSERT INTO customers(name,type) VALUES('Consumidor Final','Consumidor')");await pool.query("INSERT INTO products(code,name,brand,category,unit,stock,min_stock,max_stock,cost,retail,wholesale,wholesale_min,promo) VALUES ('001','Cimento 50kg','Exemplo','Cimento','SC',35,10,80,28,39.90,36,10,34.90),('002','Torneira Jardim','Krona','Hidráulica','UN',8,10,50,2.10,4.99,4.20,10,3.99),('003','Lâmpada LED 9W','Exemplo','Elétrica','UN',80,20,120,2.20,3.50,3.10,20,2.99)")};app.listen(PORT,HOST,()=>{console.log(`Porto Prime 4.1.4 em http://${HOST}:${PORT}`);setImmediate(()=>autoBackupIfDue())});setInterval(autoBackupIfDue,60*60*1000).unref?.()}boot().catch(e=>{console.error(e);process.exit(1)});
+
+async function boot(){
+  await initDb();
+  let n=+(await pool.query('SELECT count(*) n FROM users')).rows[0].n;
+  if(!n){
+    let h=await bcrypt.hash('Admin@123',12);
+    await pool.query("INSERT INTO users(name,email,password_hash,role,force_change_password) VALUES('Administrador','admin@construgest.local',$1,'Administrador',true)",[h]);
+    await pool.query("INSERT INTO customers(name,type) VALUES('Consumidor Final','Consumidor')");
+    await pool.query("INSERT INTO products(code,name,brand,category,unit,stock,min_stock,max_stock,cost,retail,wholesale,wholesale_min,promo) VALUES ('001','Cimento 50kg','Exemplo','Cimento','SC',35,10,80,28,39.90,36,10,34.90),('002','Torneira Jardim','Krona','Hidráulica','UN',8,10,50,2.10,4.99,4.20,10,3.99),('003','Lâmpada LED 9W','Exemplo','Elétrica','UN',80,20,120,2.20,3.50,3.10,20,2.99)");
+  }
+  app.listen(PORT,HOST,()=>{console.log(`Porto Prime 4.2.1 em http://${HOST}:${PORT}`);setImmediate(()=>autoBackupIfDue())});
+  setInterval(autoBackupIfDue,60*60*1000).unref?.();
+}
+boot().catch(e=>{console.error(e);process.exit(1)});
