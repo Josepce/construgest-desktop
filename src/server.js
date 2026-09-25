@@ -64,7 +64,7 @@ app.get('/api/auth/recovery-info',async(req,res)=>{if(!localRequest(req))return 
 app.post('/api/auth/recover-admin',async(req,res)=>{if(!localRequest(req))return res.status(403).json({error:'Recuperação disponível somente neste computador.'});try{
   const machineId=String(req.body?.machineId||'').trim().toUpperCase(),email=String(req.body?.email||'').trim(),password=String(req.body?.password||'');
   if(machineId!==MACHINE_ID)throw Error('ID deste computador não confere.');
-  if(password.length<8)throw Error('A nova senha deve ter pelo menos 8 caracteres.');
+  if(password.length<6)throw Error('A nova senha deve ter pelo menos 6 caracteres.');
   const q=await pool.query("SELECT id,email FROM users WHERE role='Administrador' AND active=true AND lower(email)=lower($1) ORDER BY id LIMIT 1",[email]);
   if(!q.rowCount)throw Error('Administrador não encontrado neste banco.');
   try{await saveLogicalBackup('PASSWORD-RECOVERY')}catch{}
