@@ -1,6 +1,6 @@
 {
   "name": "construgest-desktop-standalone",
-  "version": "4.2.1",
+  "version": "4.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,7 +19,8 @@
     "check:quotes": "node scripts/check-quote-search.cjs",
     "check:reports": "node scripts/check-management-report.mjs",
     "check:stability": "node scripts/check-stability-420.mjs",
-    "check:server": "node scripts/check-server-integrity.cjs"
+    "check:server": "node scripts/check-server-integrity.cjs",
+    "check:stock-intelligence": "node scripts/check-stock-intelligence.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
