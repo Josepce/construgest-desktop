@@ -1,5 +1,5 @@
 import {nextProductCode} from './product-codes.js';
-import express from 'express'; import os from 'os'; import fs from 'fs'; import crypto from 'crypto'; import * as XLSX from 'xlsx'; import bcrypt from 'bcryptjs'; import jwt from 'jsonwebtoken'; import path from 'path'; import { fileURLToPath } from 'url'; import {pool,initDb,tx} from './db.js'; import {createTrialManager} from './trial-license.js'; import {getManagementReport,validateManagementPeriod} from './management-report.js';
+import express from 'express'; import os from 'os'; import fs from 'fs'; import crypto from 'crypto'; import * as XLSX from 'xlsx'; import bcrypt from 'bcryptjs'; import jwt from 'jsonwebtoken'; import path from 'path'; import { fileURLToPath } from 'url'; import {pool,initDb,tx} from './db.js'; import {createTrialManager} from './trial-license.js'; import {getManagementReport,validateManagementPeriod} from './management-report.js'; import {getStockIntelligence} from './stock-intelligence.js';
 const app=express(), PORT=process.env.PORT||3000, HOST=process.env.HOST||'127.0.0.1', SECRET=process.env.JWT_SECRET||crypto.randomBytes(32).toString('hex'); const __dirname=path.dirname(fileURLToPath(import.meta.url)); const publicDir=path.join(__dirname,'..','public'); app.disable('x-powered-by'); app.use(express.json({limit:'50mb'})); app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next()}); app.use((req,res,next)=>{if(req.path==='/'||req.path.endsWith('.html'))res.set('Cache-Control','no-store, no-cache, must-revalidate');next()}); app.use(express.static(publicDir,{etag:true,lastModified:true,maxAge:'1h',setHeaders:(res,file)=>{if(file.includes(path.sep+'assets'+path.sep))res.setHeader('Cache-Control','public, max-age=604800')}}));
 // Porto Prime 4.1.4 - Licenciamento offline assinado (Ed25519) e demonstração de 7 dias
 const LICENSE_PUBLIC_KEY=`-----BEGIN PUBLIC KEY-----
@@ -319,6 +319,18 @@ app.get('/api/dashboard-v23',auth,roles('Administrador','Gerente'),async(req,res
  pool.query("SELECT p.id,p.name,p.stock,p.cost FROM products p WHERE p.active=true AND p.stock>0 AND NOT EXISTS(SELECT 1 FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE si.product_id=p.id AND s.status='FINALIZADA' AND s.created_at>now()-interval '60 days') ORDER BY p.stock*p.cost DESC LIMIT 5")
 ]);res.json({today:today.rows[0],month:month.rows[0],financial:fin.rows,low:low.rows,top:top.rows,dead:dead.rows})}catch(e){res.status(500).json({error:e.message})}});
 app.get('/api/stock/replenishment',auth,async(req,res)=>{let q=await pool.query("SELECT id,code,name,brand,unit,stock,min_stock,max_stock,cost,retail,GREATEST(COALESCE(max_stock,0)-stock,COALESCE(min_stock,0)-stock,0) suggested,CASE WHEN stock<=0 THEN 'SEM ESTOQUE' WHEN stock<=min_stock THEN 'REPOR' ELSE 'OK' END status FROM products WHERE active=true AND stock<=min_stock ORDER BY CASE WHEN stock<=0 THEN 0 ELSE 1 END,(min_stock-stock) DESC,name");res.json(q.rows)});
+app.get('/api/stock/intelligence',auth,roles('Administrador','Gerente','Estoquista'),async(req,res)=>{try{
+  const data=await getStockIntelligence(pool,{days:req.query.days});
+  const canCost=await userPerm(req.user.id,'view_cost');
+  if(!canCost){
+    data.summary.stock_cost_value=0;data.summary.dead_value=0;data.summary.gross_profit=0;
+    for(const x of data.products){delete x.cost;delete x.stock_value;delete x.gross_profit;delete x.margin}
+    for(const x of data.dead_stock){delete x.cost;delete x.stock_value;delete x.gross_profit;delete x.margin}
+    for(const x of data.replenishment){delete x.cost;delete x.stock_value;delete x.gross_profit;delete x.margin}
+  }
+  res.json(data);
+}catch(e){res.status(500).json({error:'Não foi possível gerar a inteligência de estoque: '+e.message})}});
+
 
 // ConstruGest 2.7.1 - vendas suspensas compartilhadas na rede local
 app.get('/api/suspended-sales',auth,roles('Administrador','Gerente','Vendedor','Caixa'),async(req,res)=>{try{let q=await pool.query("SELECT ss.id,ss.label,ss.customer_id,ss.payload,ss.created_at,ss.updated_at,u.name operator,c.name customer FROM suspended_sales ss LEFT JOIN users u ON u.id=ss.user_id LEFT JOIN customers c ON c.id=ss.customer_id ORDER BY ss.updated_at DESC");res.json(q.rows)}catch(e){res.status(500).json({error:e.message})}});
