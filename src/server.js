@@ -1,5 +1,5 @@
 import {nextProductCode} from './product-codes.js';
-import express from 'express'; import os from 'os'; import fs from 'fs'; import crypto from 'crypto'; import * as XLSX from 'xlsx'; import bcrypt from 'bcryptjs'; import jwt from 'jsonwebtoken'; import path from 'path'; import { fileURLToPath } from 'url'; import {pool,initDb,tx} from './db.js'; import {createTrialManager} from './trial-license.js';
+import express from 'express'; import os from 'os'; import fs from 'fs'; import crypto from 'crypto'; import * as XLSX from 'xlsx'; import bcrypt from 'bcryptjs'; import jwt from 'jsonwebtoken'; import path from 'path'; import { fileURLToPath } from 'url'; import {pool,initDb,tx} from './db.js'; import {createTrialManager} from './trial-license.js'; import {getManagementReport,validateManagementPeriod} from './management-report.js';
 const app=express(), PORT=process.env.PORT||3000, HOST=process.env.HOST||'127.0.0.1', SECRET=process.env.JWT_SECRET||'dev-secret-change'; const __dirname=path.dirname(fileURLToPath(import.meta.url)); const publicDir=path.join(__dirname,'..','public'); app.use(express.json({limit:'50mb'})); app.use((req,res,next)=>{if(req.path==='/'||req.path.endsWith('.html'))res.set('Cache-Control','no-store, no-cache, must-revalidate');next()}); app.use(express.static(publicDir,{etag:true,lastModified:true,maxAge:'1h',setHeaders:(res,file)=>{if(file.includes(path.sep+'assets'+path.sep))res.setHeader('Cache-Control','public, max-age=604800')}}));
 // Porto Prime 4.1.4 - Licenciamento offline assinado (Ed25519) e demonstração de 7 dias
 const LICENSE_PUBLIC_KEY=`-----BEGIN PUBLIC KEY-----
@@ -188,27 +188,36 @@ app.post('/api/quotes/:id/convert',auth,roles('Administrador','Gerente','Vendedo
 app.get('/api/reports/summary',auth,roles('Administrador','Gerente'),async(req,res)=>{let [pay,rec,top,dead]=await Promise.all([pool.query("SELECT COALESCE(sum(amount),0) total FROM financial_entries WHERE kind IN ('PAGAR','DESPESA') AND status='PENDENTE'"),pool.query("SELECT COALESCE(sum(amount),0) total FROM financial_entries WHERE kind='RECEBER' AND status='PENDENTE'"),pool.query("SELECT si.description,sum(si.qty) qty,sum(si.qty*si.unit_price) revenue,sum(si.qty*(si.unit_price-si.cost)) profit FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE s.status='FINALIZADA' GROUP BY si.description ORDER BY revenue DESC LIMIT 10"),pool.query("SELECT p.id,p.code,p.name,p.stock,p.cost,p.retail FROM products p WHERE p.active=true AND NOT EXISTS(SELECT 1 FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE si.product_id=p.id AND s.status='FINALIZADA' AND s.created_at>now()-interval '60 days') ORDER BY p.stock*p.cost DESC LIMIT 30")]);res.json({payable:+pay.rows[0].total,receivable:+rec.rows[0].total,top:top.rows,dead:dead.rows})});
 // ConstruGest 3.3.1 - Relatórios Gerenciais por período
 app.get('/api/reports/management',auth,roles('Administrador','Gerente'),async(req,res)=>{try{
- let from=String(req.query.from||'').slice(0,10),to=String(req.query.to||'').slice(0,10),dateRe=/^\d{4}-\d{2}-\d{2}$/;if(!dateRe.test(from)||!dateRe.test(to)||from>to)return res.status(400).json({error:'Período inválido.'});let p=[from,to];
- let [metrics,daily,payments,products,sellers,customers,purchases,suppliers,inventory,noSales,financial,pending,categories,recent,monthly]=await Promise.all([
- pool.query("SELECT COALESCE(sum(total),0) revenue,COALESCE(sum(total-cmv),0) gross,count(*) sales,COALESCE(avg(total),0) ticket FROM sales WHERE status='FINALIZADA' AND created_at>=$1::date AND created_at<$2::date+interval '1 day'",p),
- pool.query("SELECT created_at::date AS sale_date,COALESCE(sum(total),0) total,count(*) sales FROM sales WHERE status='FINALIZADA' AND created_at>=$1::date AND created_at<$2::date+interval '1 day' GROUP BY 1 ORDER BY 1",p),
- pool.query("SELECT method,COALESCE(sum(amount),0) total FROM (SELECT sp.method,sp.amount FROM sale_payments sp JOIN sales s ON s.id=sp.sale_id WHERE s.status='FINALIZADA' AND s.created_at>=$1::date AND s.created_at<$2::date+interval '1 day' UNION ALL SELECT COALESCE(s.payment_method,'Não informado'),s.total FROM sales s WHERE s.status='FINALIZADA' AND s.created_at>=$1::date AND s.created_at<$2::date+interval '1 day' AND NOT EXISTS(SELECT 1 FROM sale_payments sp WHERE sp.sale_id=s.id)) x GROUP BY method ORDER BY total DESC",p),
- pool.query("SELECT si.description,COALESCE(sum(si.qty),0) qty,COALESCE(sum(si.qty*si.unit_price),0) revenue FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE s.status='FINALIZADA' AND s.created_at>=$1::date AND s.created_at<$2::date+interval '1 day' GROUP BY si.description ORDER BY revenue DESC LIMIT 10",p),
- pool.query("SELECT COALESCE(u.name,'Sem vendedor') name,count(*) sales,COALESCE(sum(s.total),0) revenue FROM sales s LEFT JOIN users u ON u.id=s.user_id WHERE s.status='FINALIZADA' AND s.created_at>=$1::date AND s.created_at<$2::date+interval '1 day' GROUP BY u.name ORDER BY revenue DESC",p),
- pool.query("SELECT COALESCE(c.name,'Consumidor Final') name,count(*) sales,COALESCE(sum(s.total),0) revenue,COALESCE(avg(s.total),0) ticket,max(s.created_at) last_sale FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.status='FINALIZADA' AND s.created_at>=$1::date AND s.created_at<$2::date+interval '1 day' GROUP BY c.name ORDER BY revenue DESC LIMIT 20",p),
- pool.query("SELECT count(*) count,COALESCE(sum(total),0) total FROM purchases WHERE status<>'CANCELADA' AND created_at>=$1::date AND created_at<$2::date+interval '1 day'",p),
- pool.query("SELECT COALESCE(su.name,'Sem fornecedor') name,COALESCE(sum(pu.total),0) total,count(*) purchases FROM purchases pu LEFT JOIN suppliers su ON su.id=pu.supplier_id WHERE pu.status<>'CANCELADA' AND pu.created_at>=$1::date AND pu.created_at<$2::date+interval '1 day' GROUP BY su.name ORDER BY total DESC LIMIT 10",p),
- pool.query("SELECT count(*) FILTER(WHERE active=true) products,COALESCE(sum(stock*cost) FILTER(WHERE active=true),0) cost_value,count(*) FILTER(WHERE active=true AND stock<=min_stock) low,count(*) FILTER(WHERE active=true AND stock<=0) zero FROM products"),
- pool.query("SELECT p.id,p.name,p.stock,p.cost FROM products p WHERE p.active=true AND p.stock>0 AND NOT EXISTS(SELECT 1 FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE si.product_id=p.id AND s.status='FINALIZADA' AND s.created_at>=$1::date AND s.created_at<$2::date+interval '1 day') ORDER BY p.stock*p.cost DESC LIMIT 10",p),
- pool.query("SELECT COALESCE(sum(CASE WHEN kind='RECEBER' AND status='PAGO' THEN amount ELSE 0 END),0) income,COALESCE(sum(CASE WHEN kind IN ('PAGAR','DESPESA') AND status='PAGO' THEN amount ELSE 0 END),0) outflow FROM financial_entries WHERE COALESCE(paid_at,created_at)>=$1::date AND COALESCE(paid_at,created_at)<$2::date+interval '1 day'",p),
- pool.query("SELECT COALESCE(sum(amount) FILTER(WHERE kind='RECEBER' AND status='PENDENTE'),0) receivable,count(*) FILTER(WHERE kind='RECEBER' AND status='PENDENTE') receivable_count,COALESCE(sum(amount) FILTER(WHERE kind IN ('PAGAR','DESPESA') AND status='PENDENTE'),0) payable,count(*) FILTER(WHERE kind IN ('PAGAR','DESPESA') AND status='PENDENTE') payable_count FROM financial_entries"),
- pool.query("SELECT COALESCE(NULLIF(p.category,''),'Sem categoria') name,COALESCE(sum(si.qty*si.unit_price),0) total FROM sale_items si JOIN sales s ON s.id=si.sale_id LEFT JOIN products p ON p.id=si.product_id WHERE s.status='FINALIZADA' AND s.created_at>=$1::date AND s.created_at<$2::date+interval '1 day' GROUP BY 1 ORDER BY total DESC LIMIT 6",p),
- pool.query("SELECT s.id,s.created_at,s.total,s.payment_method,COALESCE(c.name,'Consumidor Final') customer,COALESCE(u.name,'—') seller,COALESCE(sum(si.qty),0) items,COALESCE(s.total-s.cmv,0) gross,CASE WHEN s.total>0 THEN (s.total-s.cmv)/s.total*100 ELSE 0 END margin FROM sales s LEFT JOIN customers c ON c.id=s.customer_id LEFT JOIN users u ON u.id=s.user_id LEFT JOIN sale_items si ON si.sale_id=s.id WHERE s.status='FINALIZADA' AND s.created_at>=$1::date AND s.created_at<$2::date+interval '1 day' GROUP BY s.id,c.name,u.name ORDER BY s.created_at DESC LIMIT 12",p),
- pool.query("SELECT to_char(m,'Mon') label,to_char(m,'YYYY-MM') month,COALESCE(sum(s.total),0) total FROM generate_series(date_trunc('month',current_date)-interval '11 months',date_trunc('month',current_date),interval '1 month') m LEFT JOIN sales s ON s.status='FINALIZADA' AND s.created_at>=m AND s.created_at<m+interval '1 month' GROUP BY m ORDER BY m")
- ]);
- let m=metrics.rows[0],f=financial.rows[0],pd=pending.rows[0],revenue=+m.revenue||0,gross=+m.gross||0,income=+f.income||0,outflow=+f.outflow||0;
- res.json({from,to,metrics:{revenue,gross,sales:+m.sales||0,ticket:+m.ticket||0,margin:revenue?gross/revenue*100:0},daily:daily.rows,monthly:monthly.rows,payments:payments.rows,products:products.rows,sellers:sellers.rows,customers:customers.rows,purchases:purchases.rows[0],suppliers:suppliers.rows,inventory:inventory.rows[0],no_sales:noSales.rows,categories:categories.rows,recent_sales:recent.rows,financial:{income,outflow,result:income-outflow,receivable:+pd.receivable||0,receivable_count:+pd.receivable_count||0,payable:+pd.payable||0,payable_count:+pd.payable_count||0}})
-}catch(e){res.status(500).json({error:'Não foi possível gerar o relatório: '+e.message})}});
+  const data=await getManagementReport(pool,req.query.from,req.query.to);
+  res.json(data);
+}catch(e){
+  res.status(e.code==='INVALID_PERIOD'?400:500).json({error:e.code==='INVALID_PERIOD'?e.message:'Não foi possível gerar o relatório: '+e.message});
+}});
+
+app.get('/api/reports/management/export',auth,roles('Administrador','Gerente'),async(req,res)=>{try{
+  const {from,to}=validateManagementPeriod(req.query.from,req.query.to);
+  const r=await getManagementReport(pool,from,to);
+  const wb=XLSX.utils.book_new();
+  const add=(name,rows)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),name);
+  add('Resumo',[
+    ['PORTO PRIME - RELATÓRIO GERENCIAL'],['Período',from,to],[],
+    ['Indicador','Valor'],
+    ['Faturamento',r.metrics.revenue],['Lucro bruto',r.metrics.gross],['Margem %',r.metrics.margin],['Vendas',r.metrics.sales],['Ticket médio',r.metrics.ticket],
+    ['Entradas financeiras',r.financial.income],['Saídas financeiras',r.financial.outflow],['Resultado financeiro',r.financial.result],
+    ['A receber',r.financial.receivable],['A pagar',r.financial.payable],['Compras no período',r.purchases.total]
+  ]);
+  add('Produtos',[['Produto','Quantidade','Faturamento'],...r.products.map(x=>[x.description,x.qty,x.revenue])]);
+  add('Clientes',[['Cliente','Compras','Faturamento','Ticket médio','Última compra'],...r.customers.map(x=>[x.name,x.sales,x.revenue,x.ticket,x.last_sale||''])]);
+  add('Vendedores',[['Vendedor','Vendas','Faturamento'],...r.sellers.map(x=>[x.name,x.sales,x.revenue])]);
+  add('Fornecedores',[['Fornecedor','Compras','Total'],...r.suppliers.map(x=>[x.name,x.purchases,x.total])]);
+  add('Estoque',[['Indicador','Valor'],['Produtos ativos',r.inventory.products],['Valor a custo',r.inventory.cost_value],['Estoque baixo',r.inventory.low],['Estoque zerado',r.inventory.zero],[],['Sem venda no período','Estoque','Custo'],...r.no_sales.map(x=>[x.name,+x.stock||0,+x.cost||0])]);
+  const buf=XLSX.write(wb,{type:'buffer',bookType:'xlsx'});
+  res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition',`attachment; filename="PortoPrime-Relatorio-${from}-a-${to}.xlsx"`);
+  res.send(buf);
+}catch(e){
+  res.status(e.code==='INVALID_PERIOD'?400:500).json({error:e.code==='INVALID_PERIOD'?e.message:'Não foi possível exportar o relatório: '+e.message});
+}});
 
 
 // --- ConstruGest PRO v4.2 ---
