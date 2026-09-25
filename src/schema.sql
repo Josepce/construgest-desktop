@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS users(id SERIAL PRIMARY KEY,name TEXT NOT NULL,email TEXT UNIQUE NOT NULL,password_hash TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('Administrador','Gerente','Vendedor','Caixa','Estoquista')),active BOOLEAN DEFAULT TRUE,created_at TIMESTAMPTZ DEFAULT now());
+CREATE TABLE IF NOT EXISTS users(id SERIAL PRIMARY KEY,name TEXT NOT NULL,email TEXT UNIQUE NOT NULL,password_hash TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('Administrador','Gerente','Vendedor','Caixa','Estoquista')),active BOOLEAN DEFAULT TRUE,force_change_password BOOLEAN DEFAULT FALSE,created_at TIMESTAMPTZ DEFAULT now());
 CREATE TABLE IF NOT EXISTS products(id SERIAL PRIMARY KEY,code TEXT UNIQUE NOT NULL,ean TEXT, name TEXT NOT NULL,brand TEXT,category TEXT,unit TEXT DEFAULT 'UN',location TEXT,stock NUMERIC(14,3) DEFAULT 0,min_stock NUMERIC(14,3) DEFAULT 0,max_stock NUMERIC(14,3) DEFAULT 0,cost NUMERIC(14,2) DEFAULT 0,retail NUMERIC(14,2) DEFAULT 0,wholesale NUMERIC(14,2) DEFAULT 0,wholesale_min NUMERIC(14,3) DEFAULT 0,promo NUMERIC(14,2) DEFAULT 0,promo_start DATE,promo_end DATE,active BOOLEAN DEFAULT TRUE,updated_at TIMESTAMPTZ DEFAULT now());
 CREATE TABLE IF NOT EXISTS customers(id SERIAL PRIMARY KEY,name TEXT NOT NULL,doc TEXT,phone TEXT,email TEXT,address TEXT,type TEXT DEFAULT 'Consumidor',credit_limit NUMERIC(14,2) DEFAULT 0,created_at TIMESTAMPTZ DEFAULT now());
 CREATE TABLE IF NOT EXISTS suppliers(id SERIAL PRIMARY KEY,name TEXT NOT NULL,doc TEXT,contact TEXT,phone TEXT,email TEXT,address TEXT,created_at TIMESTAMPTZ DEFAULT now());
@@ -94,3 +94,12 @@ CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 -- 4.1.4: sequência persistente dos códigos automáticos, sem alterar produtos existentes.
 CREATE TABLE IF NOT EXISTS product_code_counter(id INTEGER PRIMARY KEY CHECK(id=1),last_value NUMERIC NOT NULL DEFAULT 0);
 INSERT INTO product_code_counter(id,last_value) VALUES(1,0) ON CONFLICT(id) DO NOTHING;
+
+
+-- Porto Prime 4.2.0 - estabilização profissional
+ALTER TABLE users ADD COLUMN IF NOT EXISTS force_change_password BOOLEAN DEFAULT FALSE;
+CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY,description TEXT NOT NULL,applied_at TIMESTAMPTZ DEFAULT now());
+INSERT INTO schema_migrations(version,description) VALUES(420,'Porto Prime 4.2.0 - segurança, estabilidade e auditoria') ON CONFLICT(version) DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_fin_created ON financial_entries(created_at);
+CREATE INDEX IF NOT EXISTS idx_sales_user_created ON sales(user_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_purchase_status_created ON purchases(status,created_at);
