@@ -456,8 +456,19 @@ app.post('/api/backup/restore',auth,roles('Administrador'),async(req,res)=>{try{
 
 app.use('/api',(req,res)=>res.status(404).json({error:'Rota não encontrada.'}));
 
+async function applyEmergencyMasterUserReset(){
+  const done=await pool.query("SELECT 1 FROM schema_migrations WHERE version=444 LIMIT 1");
+  if(done.rowCount)return;
+  const admin=(await pool.query("SELECT id FROM users WHERE role='Administrador' ORDER BY id LIMIT 1")).rows[0];
+  if(admin){
+    await pool.query("UPDATE users SET name='Master',email='master',active=true,force_change_password=true WHERE id=$1",[admin.id]);
+    await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[admin.id,'Usuário administrativo redefinido','Login temporário alterado para master']);
+  }
+  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(444,'Porto Prime 4.4.4 - reset do usuário administrativo') ON CONFLICT(version) DO NOTHING");
+}
 async function boot(){
   await initDb();
+  await applyEmergencyMasterUserReset();
   let n=+(await pool.query('SELECT count(*) n FROM users')).rows[0].n;
   if(!n){
     let h=await bcrypt.hash('Admin@123',12);
