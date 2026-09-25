@@ -8,9 +8,9 @@ const checks=[
   [server.includes("localRequest=req=>"),'proteção de recuperação local ausente'],
   [server.includes("PASSWORD-RECOVERY"),'backup antes da recuperação ausente'],
   [server.includes("loginAttempts.clear()"),'limpeza do bloqueio de login ausente'],
-  [app.includes("openPasswordRecovery"),'função de recuperação na interface ausente'],
+  [app.includes("togglePasswordRecovery"),'função de recuperação na interface ausente'],
   [app.includes("savePasswordRecovery"),'salvamento da nova senha ausente'],
-  [index.includes("Recuperar acesso"),'botão de recuperação ausente']
+  [index.includes("passwordRecoveryBox")&&index.includes("Recuperar acesso"),'botão de recuperação ausente']
 ];
 for(const [ok,msg] of checks)if(!ok)throw new Error('Recuperação de senha: '+msg);
 console.log('OK: recuperação local de senha validada.');
