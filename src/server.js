@@ -1,5 +1,5 @@
 import {nextProductCode} from './product-codes.js';
-import express from 'express'; import os from 'os'; import fs from 'fs'; import crypto from 'crypto'; import * as XLSX from 'xlsx'; import bcrypt from 'bcryptjs'; import jwt from 'jsonwebtoken'; import path from 'path'; import { fileURLToPath } from 'url'; import {pool,initDb,tx} from './db.js'; import {createTrialManager} from './trial-license.js'; import {getManagementReport,validateManagementPeriod} from './management-report.js'; import {getStockIntelligence} from './stock-intelligence.js';
+import express from 'express'; import os from 'os'; import fs from 'fs'; import crypto from 'crypto'; import * as XLSX from 'xlsx'; import bcrypt from 'bcryptjs'; import jwt from 'jsonwebtoken'; import path from 'path'; import { fileURLToPath } from 'url'; import {pool,initDb,tx} from './db.js'; import {createTrialManager} from './trial-license.js'; import {getManagementReport,validateManagementPeriod} from './management-report.js'; import {getSellerPerformance,validateMonthKey} from './seller-performance.js'; import {getStockIntelligence} from './stock-intelligence.js';
 const app=express(), PORT=process.env.PORT||3000, HOST=process.env.HOST||'127.0.0.1', SECRET=process.env.JWT_SECRET||crypto.randomBytes(32).toString('hex'); const __dirname=path.dirname(fileURLToPath(import.meta.url)); const publicDir=path.join(__dirname,'..','public'); app.disable('x-powered-by'); app.use(express.json({limit:'50mb'})); app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next()}); app.use((req,res,next)=>{if(req.path==='/'||req.path.endsWith('.html'))res.set('Cache-Control','no-store, no-cache, must-revalidate');next()}); app.use(express.static(publicDir,{etag:true,lastModified:true,maxAge:'1h',setHeaders:(res,file)=>{if(file.includes(path.sep+'assets'+path.sep))res.setHeader('Cache-Control','public, max-age=604800')}}));
 // Porto Prime 4.1.4 - Licenciamento offline assinado (Ed25519) e demonstração de 7 dias
 const LICENSE_PUBLIC_KEY=`-----BEGIN PUBLIC KEY-----
@@ -222,6 +222,39 @@ app.post('/api/users',auth,roles('Administrador'),async(req,res)=>{let x=req.bod
 app.get('/api/users',auth,roles('Administrador'),async(req,res)=>res.json((await pool.query('SELECT id,name,email,role,permissions,active,created_at FROM users ORDER BY name')).rows));
 app.put('/api/users/:id',auth,roles('Administrador'),async(req,res)=>{try{let x=req.body||{};if(+req.params.id===+req.user.id&&x.active===false)throw Error('Você não pode desativar o próprio usuário.');let q=await pool.query('UPDATE users SET name=$1,email=$2,role=$3,permissions=$4::jsonb,active=$5 WHERE id=$6 RETURNING id,name,email,role,permissions,active',[x.name,x.email,x.role,JSON.stringify(x.permissions||{}),x.active!==false,req.params.id]);if(!q.rowCount)throw Error('Usuário não encontrado.');await pool.query('INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)',[req.user.id,'Permissões de usuário alteradas',x.name||('#'+req.params.id)]);res.json(q.rows[0])}catch(e){res.status(400).json({error:e.message})}});
 
+app.get('/api/seller-performance',auth,roles('Administrador','Gerente','Vendedor'),async(req,res)=>{try{
+  const month=validateMonthKey(req.query.month);
+  const data=await getSellerPerformance(pool,month);
+  if(req.user.role==='Vendedor')data.sellers=data.sellers.filter(x=>x.user_id===+req.user.id);
+  if(req.user.role==='Vendedor'){
+    data.summary={
+      sales:data.sellers.reduce((a,x)=>a+x.sales,0),
+      sales_total:data.sellers.reduce((a,x)=>a+x.sales_total,0),
+      target_amount:data.sellers.reduce((a,x)=>a+x.target_amount,0),
+      commission_estimated:data.sellers.reduce((a,x)=>a+x.commission_estimated,0),
+      achieved_count:data.sellers.filter(x=>x.achieved).length
+    };
+  }
+  res.json(data);
+}catch(e){res.status(e.code==='INVALID_MONTH'?400:500).json({error:e.code==='INVALID_MONTH'?e.message:'Não foi possível gerar o painel de vendedores: '+e.message})}});
+
+app.put('/api/seller-performance/:userId/target',auth,roles('Administrador','Gerente'),async(req,res)=>{try{
+  const userId=+req.params.userId,month=validateMonthKey(req.body?.month);
+  const target=+req.body?.target_amount,pct=+req.body?.commission_percent;
+  if(!Number.isInteger(userId)||userId<=0)throw Error('Vendedor inválido.');
+  if(!Number.isFinite(target)||target<0)throw Error('Meta inválida.');
+  if(!Number.isFinite(pct)||pct<0||pct>100)throw Error('Percentual de comissão inválido.');
+  const uq=await pool.query("SELECT id,name,role FROM users WHERE id=$1 AND active=true",[userId]);
+  if(!uq.rowCount)throw Error('Usuário não encontrado ou inativo.');
+  const q=await pool.query(`INSERT INTO seller_targets(user_id,month_key,target_amount,commission_percent,updated_at)
+    VALUES($1,$2,$3,$4,now())
+    ON CONFLICT(user_id,month_key) DO UPDATE
+      SET target_amount=EXCLUDED.target_amount,commission_percent=EXCLUDED.commission_percent,updated_at=now()
+    RETURNING *`,[userId,month,target,pct]);
+  await audit(pool,req.user.id,'Meta/comissão de vendedor alterada',uq.rows[0].name+' • '+month+' • meta '+target.toFixed(2)+' • comissão '+pct.toFixed(3)+'%');
+  res.json(q.rows[0]);
+}catch(e){res.status(400).json({error:e.message})}});
+
 app.get('/api/purchases',auth,async(req,res)=>res.json((await pool.query(`SELECT p.*,s.name supplier,u.name buyer FROM purchases p LEFT JOIN suppliers s ON s.id=p.supplier_id LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 200`)).rows));
 app.post('/api/purchases',auth,roles('Administrador','Gerente','Estoquista'),async(req,res)=>{try{let out=await tx(async c=>{let x=req.body,items=x.items||[];if(!items.length)throw Error('Informe ao menos um item.');for(const i of items)if(!Number.isFinite(+i.qty)||+i.qty<=0||!Number.isFinite(+i.unit_cost)||+i.unit_cost<0)throw Error('Quantidade ou custo inválido na compra.');let total=items.reduce((a,i)=>a+(+i.qty)*(+i.unit_cost),0);let pur=(await c.query(`INSERT INTO purchases(supplier_id,user_id,status,total,invoice_number,notes) VALUES($1,$2,'PEDIDO',$3,$4,$5) RETURNING *`,[x.supplier_id||null,req.user.id,total,x.invoice_number||'',x.notes||''])).rows[0];for(let i of items)await c.query('INSERT INTO purchase_items(purchase_id,product_id,qty,unit_cost) VALUES($1,$2,$3,$4)',[pur.id,i.product_id,+i.qty,+i.unit_cost]);await audit(c,req.user.id,'Compra criada','#'+pur.id);return pur});res.status(201).json(out)}catch(e){res.status(400).json({error:e.message})}});
 app.post('/api/purchases/:id/receive',auth,roles('Administrador','Gerente','Estoquista'),async(req,res)=>{try{let out=await tx(async c=>{let pur=(await c.query('SELECT * FROM purchases WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];if(!pur)throw Error('Compra não encontrada.');if(pur.status==='RECEBIDA')throw Error('Esta compra já foi recebida.');let items=(await c.query('SELECT * FROM purchase_items WHERE purchase_id=$1',[pur.id])).rows;for(let i of items){let p=(await c.query('SELECT * FROM products WHERE id=$1 FOR UPDATE',[i.product_id])).rows[0];let before=+p.stock,qty=+i.qty,oldCost=+p.cost,newCost=(before+qty)>0?((before*oldCost)+(qty*+i.unit_cost))/(before+qty):+i.unit_cost,after=before+qty;await c.query('UPDATE products SET stock=$1,cost=$2,updated_at=now() WHERE id=$3',[after,newCost,p.id]);await c.query(`INSERT INTO stock_movements(product_id,user_id,kind,qty,balance_before,balance_after,reference_type,reference_id,note) VALUES($1,$2,'COMPRA',$3,$4,$5,'PURCHASE',$6,$7)`,[p.id,req.user.id,qty,before,after,pur.id,'Custo médio: '+newCost.toFixed(2)])}let n=Math.max(1,+req.body.installments||1),first=req.body.first_due||new Date().toISOString().slice(0,10),base=Math.floor((+pur.total/n)*100)/100,remaining=+pur.total;for(let k=1;k<=n;k++){let d=new Date(first+'T12:00:00');d.setMonth(d.getMonth()+k-1);let amount=k===n?remaining:base;remaining-=amount;await c.query(`INSERT INTO financial_entries(kind,description,category,amount,due_date,status,reference_type,reference_id,installment_no,installment_count) VALUES('PAGAR',$1,'Compra',$2,$3,'PENDENTE','PURCHASE',$4,$5,$6)`,[`Compra #${pur.id} parcela ${k}/${n}`,amount,d.toISOString().slice(0,10),pur.id,k,n])}let q=(await c.query("UPDATE purchases SET status='RECEBIDA',received_at=now() WHERE id=$1 RETURNING *",[pur.id])).rows[0];await audit(c,req.user.id,'Compra recebida','#'+pur.id);return q});res.json(out)}catch(e){res.status(400).json({error:e.message})}});
@@ -343,7 +376,7 @@ app.delete('/api/suspended-sales/:id',auth,roles('Administrador','Gerente','Vend
 app.get('/api/settings',auth,async(req,res)=>{let q=await pool.query("SELECT data FROM app_settings WHERE id=1");res.json(q.rows[0]?.data||{})});
 app.put('/api/settings',auth,roles('Administrador'),async(req,res)=>{try{let data=req.body||{};await pool.query("INSERT INTO app_settings(id,data,updated_at) VALUES(1,$1::jsonb,now()) ON CONFLICT(id) DO UPDATE SET data=EXCLUDED.data,updated_at=now()",[JSON.stringify(data)]);await pool.query('INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)',[req.user.id,'Configurações alteradas','Configurações gerais do sistema']);res.json({ok:true,data})}catch(e){res.status(400).json({error:'Não foi possível salvar as configurações: '+e.message})}});
 
-const BACKUP_TABLES=['users','products','customers','suppliers','cash_sessions','cash_movements','sales','sale_items','stock_movements','purchases','purchase_items','financial_entries','audit_logs','quotes','quote_items','sale_payments','inventory_counts','inventory_count_items','app_settings','suspended_sales','product_code_counter'];
+const BACKUP_TABLES=['users','products','customers','suppliers','cash_sessions','cash_movements','sales','sale_items','stock_movements','purchases','purchase_items','financial_entries','audit_logs','quotes','quote_items','sale_payments','inventory_counts','inventory_count_items','app_settings','suspended_sales','product_code_counter','seller_targets'];
 const BACKUP_FORMAT='ConstruGest Backup', BACKUP_SCHEMA=4, BACKUP_VERSION='4.3.0';
 const backupDigest=b=>crypto.createHash('sha256').update(JSON.stringify({format:b.format,version:b.version,schema_version:b.schema_version,kind:b.kind,created_at:b.created_at,tables:b.tables})).digest('hex');
 const backupDir=()=>path.join(process.env.ELECTRON_DATA_DIR?path.dirname(process.env.ELECTRON_DATA_DIR):path.join(process.cwd(),'data'),'backups');
