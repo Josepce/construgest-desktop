@@ -13,6 +13,8 @@ const required=[
   ["sanitização de custo",server.includes("productForUser")&&server.includes("delete x.cost")],
   ["restore valida colunas",server.includes("information_schema.columns")&&server.includes("coluna não autorizada")],
   ["cabeçalhos de segurança",server.includes("X-Content-Type-Options")&&server.includes("X-Frame-Options")],
+  ["motor único de vendas",server.includes("async function finalizeSaleCore")&&server.includes("/api/sales-v42")&&server.includes("saleRoute")],
+  ["integridade de backup",server.includes("integrity_sha256")&&server.includes("backupDigest")],
   ["versão 4.2.0",index.includes("4.2.0")]
 ];
 for(const [name,ok] of required)if(!ok)throw Error('Falha de estabilidade 4.2.0: '+name);
