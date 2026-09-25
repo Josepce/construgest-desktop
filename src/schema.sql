@@ -103,3 +103,18 @@ INSERT INTO schema_migrations(version,description) VALUES(420,'Porto Prime 4.2.0
 CREATE INDEX IF NOT EXISTS idx_fin_created ON financial_entries(created_at);
 CREATE INDEX IF NOT EXISTS idx_sales_user_created ON sales(user_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_purchase_status_created ON purchases(status,created_at);
+
+
+-- Porto Prime 4.4.0 - Metas e comissões de vendedores
+CREATE TABLE IF NOT EXISTS seller_targets(
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  month_key TEXT NOT NULL CHECK(month_key ~ '^[0-9]{4}-[0-9]{2}$'),
+  target_amount NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK(target_amount>=0),
+  commission_percent NUMERIC(8,3) NOT NULL DEFAULT 0 CHECK(commission_percent>=0 AND commission_percent<=100),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id,month_key)
+);
+CREATE INDEX IF NOT EXISTS idx_seller_targets_month ON seller_targets(month_key,user_id);
+INSERT INTO schema_migrations(version,description) VALUES(440,'Porto Prime 4.4.0 - metas e comissões') ON CONFLICT(version) DO NOTHING;
