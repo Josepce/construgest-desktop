@@ -350,3 +350,14 @@ main{min-width:0}header{min-height:82px;background:#ffffffdd;backdrop-filter:blu
 /* Porto Prime 4.1.14 - correção da validação de período dos relatórios */
 
 /* Porto Prime 4.1.15 - correção SQL dos relatórios gerenciais */
+
+
+/* Porto Prime 4.3.0 - Inteligência de Estoque e Curva ABC */
+.stock-intel-hero{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:24px;margin-bottom:20px;border-radius:20px;background:linear-gradient(135deg,#0f172a,#172554 52%,#1d4ed8);color:#fff;box-shadow:0 18px 40px #0f172a24}
+.stock-intel-hero h2{margin:5px 0 7px;font-size:28px}.stock-intel-hero p{margin:0;color:#dbeafe;max-width:760px}.stock-intel-period{min-width:190px;background:#ffffff12;border:1px solid #ffffff22;padding:12px;border-radius:14px}.stock-intel-period label{color:#dbeafe;margin-top:0}.stock-intel-period select{background:#fff}
+.stock-intel-kpis .card:nth-child(5):before{background:#ef4444}.stock-intel-kpis .card:nth-child(6):before{background:#f59e0b}
+.abc-card{position:relative;overflow:hidden}.abc-card:before{content:"";position:absolute;left:0;right:0;top:0;height:4px}.abc-panel-A:before{background:#16a34a}.abc-panel-B:before{background:#2563eb}.abc-panel-C:before{background:#f59e0b}
+.abc-badge{display:inline-grid;place-items:center;min-width:28px;height:25px;padding:0 8px;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:.08em}.abc-A{background:#dcfce7;color:#15803d}.abc-B{background:#dbeafe;color:#1d4ed8}.abc-C{background:#fef3c7;color:#b45309}
+.abc-revenue{font-size:26px;font-weight:900;letter-spacing:-.04em;margin:6px 0 3px}.stock-intel-tabs{display:flex;gap:5px}
+.dark-ui .stock-intel-period select{background:#172033;color:#e5e7eb}
+@media(max-width:900px){.stock-intel-hero{align-items:flex-start;flex-direction:column}.stock-intel-period{width:100%}}
