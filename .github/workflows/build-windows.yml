@@ -13,6 +13,7 @@ on:
       - 'electron-main.cjs'
       - 'src/**'
       - 'public/**'
+      - 'scripts/**'
       - '.github/workflows/build-windows.yml'
   workflow_dispatch:
 
@@ -66,6 +67,7 @@ jobs:
           node scripts/check-products.mjs
           node scripts/check-quote-search.cjs
           node scripts/check-pdv-keyboard.cjs
+          node scripts/check-management-report.mjs
 
       - name: Gerar EXE portatil e instalador
         run: npx electron-builder --win portable nsis --x64 --publish never
