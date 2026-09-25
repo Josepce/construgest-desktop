@@ -7,22 +7,32 @@ let win;
 const singleInstance=app.requestSingleInstanceLock();
 if(!singleInstance)app.quit();
 app.on('second-instance',()=>{if(win&&!win.isDestroyed()){if(win.isMinimized())win.restore();win.focus()}});
-function hasDatabase(dir){
-  try { return fs.existsSync(path.join(dir,'database')) && fs.readdirSync(path.join(dir,'database')).length > 0; }
-  catch(_) { return false; }
+function databaseStats(dir){
+  try{
+    const db=path.join(dir,'database');
+    if(!fs.existsSync(db))return null;
+    let files=0,bytes=0,newest=0;
+    const walk=p=>{for(const name of fs.readdirSync(p)){const full=path.join(p,name),st=fs.statSync(full);newest=Math.max(newest,st.mtimeMs||0);if(st.isDirectory())walk(full);else{files++;bytes+=st.size||0}}};
+    walk(db);
+    return files?{dir,files,bytes,newest}:null;
+  }catch(_){return null}
 }
 function selectUserDataPath(){
-  // Porto Prime 4.1.2: preserva automaticamente instalações ConstruGest existentes.
+  // Porto Prime 4.4.1: quando houver mais de um banco legado, usa o banco mais completo.
   const appData=app.getPath('appData');
   const current=app.getPath('userData');
   const legacyPackage=path.join(appData,'construgest-desktop-standalone');
   const legacyProduct=path.join(appData,'ConstruGest');
   const portoPrime=path.join(appData,'Porto Prime');
-  for(const candidate of [current,legacyPackage,legacyProduct,portoPrime]){
-    if(hasDatabase(candidate)){ app.setPath('userData',candidate); return candidate; }
-  }
-  app.setPath('userData',portoPrime);
-  return portoPrime;
+  const candidates=[...new Set([current,legacyPackage,legacyProduct,portoPrime])];
+  const found=candidates.map(databaseStats).filter(Boolean).sort((a,b)=>b.bytes-a.bytes||b.files-a.files||b.newest-a.newest);
+  const chosen=found[0]?.dir||portoPrime;
+  app.setPath('userData',chosen);
+  try{
+    fs.mkdirSync(chosen,{recursive:true});
+    fs.appendFileSync(path.join(chosen,'porto-prime-startup.log'),`[${new Date().toISOString()}] Banco selecionado: ${chosen}\nCandidatos: ${found.map(x=>x.dir+' | '+x.files+' arquivos | '+x.bytes+' bytes').join(' ; ')||'nenhum banco existente'}\n\n`,'utf8');
+  }catch(_){}
+  return chosen;
 }
 selectUserDataPath();
 function machineId(){
