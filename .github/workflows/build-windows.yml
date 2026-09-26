@@ -144,6 +144,14 @@ jobs:
 
           Write-Host "OK: $zip - $sizeMB MB"
 
+      - name: Guardar pacote ZIP como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: PortoPrime-4.4.5-Windows
+          path: dist/PortoPrime-4.4.5-Windows.zip
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Publicar Release do Porto Prime
         shell: pwsh
         env:
