@@ -5,7 +5,7 @@ const index=fs.readFileSync('public/index.html','utf8');
 const checks=[
   [server.includes("/api/auth/recovery-info"),'rota de informações de recuperação ausente'],
   [server.includes("/api/auth/recover-admin"),'rota de redefinição de senha ausente'],
-  [server.includes("localRequest=req=>"),'proteção de recuperação local ausente'],
+  [server.includes("const localRequest=isLocalLoginRequest;"),'proteção de recuperação local ausente'],
   [server.includes("PASSWORD-RECOVERY"),'backup antes da recuperação ausente'],
   [server.includes("loginAttempts.clear()"),'limpeza do bloqueio de login ausente'],
   [server.includes("applyEmergencyMasterReset446"),'reset definitivo 4.4.6 ausente'],
