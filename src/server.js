@@ -50,13 +50,14 @@ async function userPerm(userId,key){let q=await pool.query('SELECT role,permissi
 const permit=key=>async(req,res,next)=>req.user.role==='Administrador'||await userPerm(req.user.id,key)?next():res.status(403).json({error:'Seu usuário não possui permissão para esta operação.'});
 async function audit(c,u,a,d=''){await c.query('INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)',[u,a,d])}
 const loginAttempts=new Map();
+const isLocalLoginRequest=req=>['127.0.0.1','::1','::ffff:127.0.0.1'].includes(String(req.ip||req.socket?.remoteAddress||''));
 const loginKey=req=>String(req.ip||req.socket?.remoteAddress||'local')+'|'+String(req.body?.email||'').trim().toLowerCase();
-function loginGuard(req,res,next){let k=loginKey(req),x=loginAttempts.get(k);if(x?.blockedUntil>Date.now())return res.status(429).json({error:'Muitas tentativas de acesso. Aguarde alguns minutos e tente novamente.'});next()}
-function loginFail(req){let k=loginKey(req),x=loginAttempts.get(k)||{count:0,blockedUntil:0};x.count++;if(x.count>=5){x.blockedUntil=Date.now()+5*60*1000;x.count=0}loginAttempts.set(k,x);if(loginAttempts.size>1000){for(const [key,v] of loginAttempts){if(!v.blockedUntil||v.blockedUntil<Date.now())loginAttempts.delete(key);if(loginAttempts.size<=500)break}}}
+function loginGuard(req,res,next){if(isLocalLoginRequest(req))return next();let k=loginKey(req),x=loginAttempts.get(k);if(x?.blockedUntil>Date.now())return res.status(429).json({error:'Muitas tentativas de acesso. Aguarde alguns minutos e tente novamente.'});next()}
+function loginFail(req){if(isLocalLoginRequest(req))return;let k=loginKey(req),x=loginAttempts.get(k)||{count:0,blockedUntil:0};x.count++;if(x.count>=5){x.blockedUntil=Date.now()+5*60*1000;x.count=0}loginAttempts.set(k,x);if(loginAttempts.size>1000){for(const [key,v] of loginAttempts){if(!v.blockedUntil||v.blockedUntil<Date.now())loginAttempts.delete(key);if(loginAttempts.size<=500)break}}}
 function loginSuccess(req){loginAttempts.delete(loginKey(req))}
 function publicUser(u){return {id:u.id,name:u.name,email:u.email,role:u.role,permissions:mergedPerms(u),must_change_password:!!u.force_change_password}}
 app.post('/api/auth/login',loginGuard,async(req,res)=>{try{const email=String(req.body?.email||'').trim(),password=String(req.body?.password||'');if(!email||!password){loginFail(req);return res.status(401).json({error:'E-mail ou senha incorretos.'})}const q=await pool.query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[email]);if(!q.rowCount||!await bcrypt.compare(password,q.rows[0].password_hash)){loginFail(req);return res.status(401).json({error:'E-mail ou senha incorretos.'})}let u=q.rows[0];loginSuccess(req);await audit(pool,u.id,'Login realizado',req.ip||'local');res.json({token:sign(u),user:publicUser(u)})}catch(e){res.status(500).json({error:'Não foi possível concluir o login.'})}});
-const localRequest=req=>['127.0.0.1','::1','::ffff:127.0.0.1'].includes(String(req.ip||req.socket?.remoteAddress||''));
+const localRequest=isLocalLoginRequest;
 app.get('/api/auth/recovery-info',async(req,res)=>{if(!localRequest(req))return res.status(403).json({error:'Recuperação disponível somente neste computador.'});try{
   const q=await pool.query("SELECT email FROM users WHERE role='Administrador' AND active=true ORDER BY id LIMIT 1");
   res.json({machineId:MACHINE_ID,email:q.rows[0]?.email||''});
@@ -475,12 +476,28 @@ async function applyEmergencyMasterPasswordReset(){
     await pool.query("UPDATE users SET name='Master',email='master',password_hash=$1,active=true,force_change_password=true WHERE id=$2",[hash,admin.id]);
     await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[admin.id,'Senha administrativa temporária redefinida','Login temporário: master']);
   }
-  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(445,'Porto Prime 4.4.5 - senha temporária master') ON CONFLICT(version) DO NOTHING");
+  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(445,'Porto Prime 4.4.6 - senha temporária master') ON CONFLICT(version) DO NOTHING");
+}
+async function applyEmergencyMasterReset446(){
+  const done=await pool.query("SELECT 1 FROM schema_migrations WHERE version=446 LIMIT 1");
+  if(done.rowCount)return;
+  const admin=(await pool.query("SELECT id FROM users WHERE role='Administrador' ORDER BY id LIMIT 1")).rows[0];
+  const hash=await bcrypt.hash('master',12);
+  if(admin){
+    await pool.query("UPDATE users SET name='Master',email='master',password_hash=$1,active=true,force_change_password=true WHERE id=$2",[hash,admin.id]);
+    await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[admin.id,'Acesso administrativo recuperado','Porto Prime 4.4.6 redefiniu usuário e senha temporários']);
+  }else{
+    const q=await pool.query("INSERT INTO users(name,email,password_hash,role,active,force_change_password) VALUES('Master','master',$1,'Administrador',true,true) RETURNING id",[hash]);
+    await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[q.rows[0].id,'Acesso administrativo criado','Porto Prime 4.4.6 criou acesso temporário master']);
+  }
+  loginAttempts.clear();
+  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(446,'Porto Prime 4.4.6 - recuperação definitiva do acesso master') ON CONFLICT(version) DO NOTHING");
 }
 async function boot(){
   await initDb();
   await applyEmergencyMasterUserReset();
   await applyEmergencyMasterPasswordReset();
+  await applyEmergencyMasterReset446();
   let n=+(await pool.query('SELECT count(*) n FROM users')).rows[0].n;
   if(!n){
     let h=await bcrypt.hash('Admin@123',12);
@@ -488,7 +505,7 @@ async function boot(){
     await pool.query("INSERT INTO customers(name,type) VALUES('Consumidor Final','Consumidor')");
     await pool.query("INSERT INTO products(code,name,brand,category,unit,stock,min_stock,max_stock,cost,retail,wholesale,wholesale_min,promo) VALUES ('001','Cimento 50kg','Exemplo','Cimento','SC',35,10,80,28,39.90,36,10,34.90),('002','Torneira Jardim','Krona','Hidráulica','UN',8,10,50,2.10,4.99,4.20,10,3.99),('003','Lâmpada LED 9W','Exemplo','Elétrica','UN',80,20,120,2.20,3.50,3.10,20,2.99)");
   }
-  app.listen(PORT,HOST,()=>{console.log(`Porto Prime 4.4.5 em http://${HOST}:${PORT}`);setImmediate(()=>autoBackupIfDue())});
+  app.listen(PORT,HOST,()=>{console.log(`Porto Prime 4.4.6 em http://${HOST}:${PORT}`);setImmediate(()=>autoBackupIfDue())});
   setInterval(autoBackupIfDue,60*60*1000).unref?.();
 }
 boot().catch(e=>{console.error(e);process.exit(1)});
