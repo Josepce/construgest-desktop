@@ -466,9 +466,21 @@ async function applyEmergencyMasterUserReset(){
   }
   await pool.query("INSERT INTO schema_migrations(version,description) VALUES(444,'Porto Prime 4.4.4 - reset do usuário administrativo') ON CONFLICT(version) DO NOTHING");
 }
+async function applyEmergencyMasterPasswordReset(){
+  const done=await pool.query("SELECT 1 FROM schema_migrations WHERE version=445 LIMIT 1");
+  if(done.rowCount)return;
+  const admin=(await pool.query("SELECT id FROM users WHERE role='Administrador' ORDER BY id LIMIT 1")).rows[0];
+  if(admin){
+    const hash=await bcrypt.hash('master',12);
+    await pool.query("UPDATE users SET name='Master',email='master',password_hash=$1,active=true,force_change_password=true WHERE id=$2",[hash,admin.id]);
+    await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[admin.id,'Senha administrativa temporária redefinida','Login temporário: master']);
+  }
+  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(445,'Porto Prime 4.4.5 - senha temporária master') ON CONFLICT(version) DO NOTHING");
+}
 async function boot(){
   await initDb();
   await applyEmergencyMasterUserReset();
+  await applyEmergencyMasterPasswordReset();
   let n=+(await pool.query('SELECT count(*) n FROM users')).rows[0].n;
   if(!n){
     let h=await bcrypt.hash('Admin@123',12);
