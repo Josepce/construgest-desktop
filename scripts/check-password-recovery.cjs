@@ -8,7 +8,7 @@ const checks=[
   [server.includes("const localRequest=isLocalLoginRequest;"),'proteção de recuperação local ausente'],
   [server.includes("PASSWORD-RECOVERY"),'backup antes da recuperação ausente'],
   [server.includes("loginAttempts.clear()"),'limpeza do bloqueio de login ausente'],
-  [server.includes("applyEmergencyMasterReset446"),'reset definitivo 4.4.6 ausente'],
+  [server.includes("applyEmergencyMasterReset447"),'reset definitivo 4.4.6 ausente'],
   [server.includes("bcrypt.hash('master',12)"),'senha temporária master não está sendo gerada'],
   [server.includes("if(isLocalLoginRequest(req))return next()"),'login local ainda pode ser bloqueado por tentativas'],
   [app.includes("togglePasswordRecovery"),'função de recuperação na interface ausente'],
