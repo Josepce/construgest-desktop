@@ -16,6 +16,7 @@
     "build:update": "electron-builder --win nsis --x64 --config electron-builder-update.yml",
     "build:release": "npm run check:critical && npm run check:trial && npm run check:products && npm run check:quotes && npm run build:portable && npm run build:setup && npm run build:update",
     "check:products": "node scripts/check-products.mjs",
+    "check:product-photo": "node scripts/check-product-photo.mjs",
     "check:quotes": "node scripts/check-quote-search.cjs",
     "check:reports": "node scripts/check-management-report.mjs",
     "check:stability": "node scripts/check-stability-420.mjs",
