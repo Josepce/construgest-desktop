@@ -64,10 +64,88 @@ async function previewProductImport(file){if(!file)return;try{productImportBase6
 async function runProductImport(mode){if(!productImportBase64)return toast('Selecione a planilha novamente.');try{let r=await api('/products/import',{method:'POST',body:JSON.stringify({base64:productImportBase64,mode})});closeModal();productImportBase64='';toast(`Importação concluída: ${r.created} novo(s), ${r.updated} atualizado(s), ${r.skipped} ignorado(s)${r.errors?.length?' • '+r.errors.length+' erro(s)':''}.`);render('produtos')}catch(e){toast(e.message)}}
 async function exportProductBackup(){try{let r=await api('/products/export'),bin=atob(r.base64),bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));a.download=r.filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);toast(`Backup gerado com ${r.count} produto(s).`)}catch(e){toast(e.message)}}
 const canStock=()=>hasPerm('stock'),canDiscount=()=>hasPerm('discount'),margin=(c,p)=>+p?(((+p-+c)/+p)*100).toFixed(1):'0.0';function filterRows(q,id){q=q.toLowerCase();document.querySelectorAll('#'+id+' tr').forEach((r,i)=>{if(i)r.style.display=r.innerText.toLowerCase().includes(q)?'':'none'})}
-async function productForm(id){let [products,categories,next]=await Promise.all([id?api('/products'):Promise.resolve([]),api('/products/categories'),id?Promise.resolve(null):api('/products/next-code')]);let p=id?products.find(x=>x.id===id):{};if(!p)return toast('Produto não encontrado.');modal(`<h3>${id?'Editar':'Novo'} produto</h3><div class=formgrid><div><label>${id?'Código *':'Código automático'}</label><input id=fcode value="${esc(id?p.code:next.code)}" ${id?'':'readonly'}>${id?'':'<small class=muted>Confirmado automaticamente ao salvar.</small>'}</div><div><label>EAN / código de barras</label><input id=fean value="${esc(p.ean||'')}"></div><div class=span2><label>Nome *</label><input id=fname value="${esc(p.name||'')}"></div><div><label>Marca</label><input id=fbrand value="${esc(p.brand||'')}"></div><div><label>Categoria</label><select id=fcat onchange="document.getElementById('fcatNewWrap').hidden=this.value!=='__new__'"><option value="">Selecione a categoria</option>${categories.map(c=>`<option value="${esc(c)}" ${c===String(p.category||'').trim()?'selected':''}>${esc(c)}</option>`).join('')}<option value="__new__">+ Nova categoria</option></select><div id=fcatNewWrap hidden><label>Nova categoria</label><input id=fcatNew maxlength=120 placeholder="Digite a nova categoria"></div></div><div><label>Unidade</label><select id=funit>${['UN','SC','CX','PCT','KG','L','M','M²','M³','ROLO','BARRA'].map(u=>`<option ${p.unit===u?'selected':''}>${u}</option>`)}</select></div><div><label>Localização</label><input id=floc value="${esc(p.location||'')}"></div>${!id?'<div><label>Estoque inicial</label><input id=fstock type=number step=.001 value="0"></div>':''}<div><label>Estoque mínimo</label><input id=fmin type=number step=.001 value="${p.min_stock||0}"></div><div><label>Estoque máximo</label><input id=fmax type=number step=.001 value="${p.max_stock||0}"></div><div><label>Custo</label><input id=fcost type=number step=.01 value="${p.cost||0}" oninput=pricePreview()></div><div><label>Preço varejo</label><input id=fretail type=number step=.01 value="${p.retail||0}" oninput=pricePreview()></div><div><label>Preço atacado</label><input id=fwhole type=number step=.01 value="${p.wholesale||0}"></div><div><label>Qtd. mínima atacado</label><input id=fwmin type=number step=.001 value="${p.wholesale_min||0}"></div><div><label>Preço promoção</label><input id=fpromo type=number step=.01 value="${p.promo||0}"></div><div><label>Início promoção</label><input id=fpstart type=date value="${String(p.promo_start||'').slice(0,10)}"></div><div><label>Fim promoção</label><input id=fpend type=date value="${String(p.promo_end||'').slice(0,10)}"></div></div><div id=priceInfo class=alert>Margem varejo: ${margin(p.cost,p.retail)}%</div><button class=primary onclick="saveProduct(${id||'null'})">Salvar produto</button> <button onclick="closeModal()">Cancelar</button>`)}
+let productImageData='';
+function productImagePreview(){
+  let img=document.getElementById('fphotoPreview'),empty=document.getElementById('fphotoEmpty'),remove=document.getElementById('fphotoRemove');
+  if(!img||!empty)return;
+  if(productImageData){img.src=productImageData;img.hidden=false;empty.hidden=true;if(remove)remove.hidden=false}
+  else{img.removeAttribute('src');img.hidden=true;empty.hidden=false;if(remove)remove.hidden=true}
+}
+function chooseProductImage(){document.getElementById('fphoto')?.click()}
+function removeProductImage(){productImageData='';productImagePreview()}
+function loadProductImage(file){
+  if(!file)return;
+  if(!/^image\/(jpeg|png|webp)$/i.test(file.type||''))return toast('Use uma imagem JPG, PNG ou WEBP.');
+  if(file.size>8*1024*1024)return toast('A imagem original deve ter no máximo 8 MB.');
+  let reader=new FileReader();
+  reader.onerror=()=>toast('Não foi possível ler a imagem.');
+  reader.onload=()=>{
+    let image=new Image();
+    image.onerror=()=>toast('Arquivo de imagem inválido.');
+    image.onload=()=>{
+      let max=900,scale=Math.min(1,max/image.width,max/image.height),w=Math.max(1,Math.round(image.width*scale)),h=Math.max(1,Math.round(image.height*scale));
+      let canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+      let ctx=canvas.getContext('2d');ctx.drawImage(image,0,0,w,h);
+      productImageData=canvas.toDataURL('image/jpeg',0.82);
+      if(productImageData.length>2200000)return toast('A imagem ficou muito grande. Escolha uma foto menor.');
+      productImagePreview();
+    };
+    image.src=String(reader.result||'');
+  };
+  reader.readAsDataURL(file);
+}
+async function productForm(id){
+  let [products,categories,next,photo]=await Promise.all([
+    id?api('/products'):Promise.resolve([]),
+    api('/products/categories'),
+    id?Promise.resolve(null):api('/products/next-code'),
+    id?api('/products/'+id+'/photo').catch(()=>({image_data:''})):Promise.resolve({image_data:''})
+  ]);
+  let p=id?products.find(x=>x.id===id):{};
+  if(!p)return toast('Produto não encontrado.');
+  productImageData=photo?.image_data||'';
+  modal(`<h3>${id?'Editar':'Novo'} produto</h3>
+  <div class=formgrid>
+    <div class=span2>
+      <label>Foto do produto</label>
+      <div style="display:flex;gap:18px;align-items:center;padding:14px;border:1px solid #d8dde6;border-radius:12px;background:#fafbfc">
+        <div style="width:150px;height:150px;border:1px dashed #aeb7c4;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 150px">
+          <img id=fphotoPreview alt="Foto do produto" style="width:100%;height:100%;object-fit:contain" hidden>
+          <div id=fphotoEmpty class=muted style="text-align:center;padding:16px">Sem foto<br><small>Adicione uma imagem do produto</small></div>
+        </div>
+        <div>
+          <input id=fphoto type=file accept="image/jpeg,image/png,image/webp" class=hidden onchange="loadProductImage(this.files[0])">
+          <button type=button class=secondary onclick="chooseProductImage()">Selecionar foto</button>
+          <button id=fphotoRemove type=button class=secondary onclick="removeProductImage()" hidden>Remover foto</button>
+          <div class=muted style="margin-top:8px"><small>JPG, PNG ou WEBP. A foto é ajustada automaticamente para economizar espaço.</small></div>
+        </div>
+      </div>
+    </div>
+    <div><label>${id?'Código *':'Código automático'}</label><input id=fcode value="${esc(id?p.code:next.code)}" ${id?'':'readonly'}>${id?'':'<small class=muted>Confirmado automaticamente ao salvar.</small>'}</div>
+    <div><label>EAN / código de barras</label><input id=fean value="${esc(p.ean||'')}"></div>
+    <div class=span2><label>Nome *</label><input id=fname value="${esc(p.name||'')}"></div>
+    <div><label>Marca</label><input id=fbrand value="${esc(p.brand||'')}"></div>
+    <div><label>Categoria</label><select id=fcat onchange="document.getElementById('fcatNewWrap').hidden=this.value!=='__new__'"><option value="">Selecione a categoria</option>${categories.map(c=>`<option value="${esc(c)}" ${c===String(p.category||'').trim()?'selected':''}>${esc(c)}</option>`).join('')}<option value="__new__">+ Nova categoria</option></select><div id=fcatNewWrap hidden><label>Nova categoria</label><input id=fcatNew maxlength=120 placeholder="Digite a nova categoria"></div></div>
+    <div><label>Unidade</label><select id=funit>${['UN','SC','CX','PCT','KG','L','M','M²','M³','ROLO','BARRA'].map(u=>`<option ${p.unit===u?'selected':''}>${u}</option>`)}</select></div>
+    <div><label>Localização</label><input id=floc value="${esc(p.location||'')}"></div>
+    ${!id?'<div><label>Estoque inicial</label><input id=fstock type=number step=.001 value="0"></div>':''}
+    <div><label>Estoque mínimo</label><input id=fmin type=number step=.001 value="${p.min_stock||0}"></div>
+    <div><label>Estoque máximo</label><input id=fmax type=number step=.001 value="${p.max_stock||0}"></div>
+    <div><label>Custo</label><input id=fcost type=number step=.01 value="${p.cost||0}" oninput=pricePreview()></div>
+    <div><label>Preço varejo</label><input id=fretail type=number step=.01 value="${p.retail||0}" oninput=pricePreview()></div>
+    <div><label>Preço atacado</label><input id=fwhole type=number step=.01 value="${p.wholesale||0}"></div>
+    <div><label>Qtd. mínima atacado</label><input id=fwmin type=number step=.001 value="${p.wholesale_min||0}"></div>
+    <div><label>Preço promoção</label><input id=fpromo type=number step=.01 value="${p.promo||0}"></div>
+    <div><label>Início promoção</label><input id=fpstart type=date value="${String(p.promo_start||'').slice(0,10)}"></div>
+    <div><label>Fim promoção</label><input id=fpend type=date value="${String(p.promo_end||'').slice(0,10)}"></div>
+  </div>
+  <div id=priceInfo class=alert>Margem varejo: ${margin(p.cost,p.retail)}%</div>
+  <button class=primary onclick="saveProduct(${id||'null'})">Salvar produto</button> <button onclick="closeModal()">Cancelar</button>`);
+  setTimeout(productImagePreview,0);
+}
 function pricePreview(){priceInfo.innerHTML=`Margem varejo: <b>${margin(fcost.value,fretail.value)}%</b> • Lucro unitário: <b>${money(+fretail.value-+fcost.value)}</b>`}
 let productSaving=false;
-async function saveProduct(id){if(productSaving)return;let x={code:id?fcode.value:undefined,ean:fean.value,name:fname.value,brand:fbrand.value,category:fcat.value==='__new__'?document.getElementById('fcatNew').value.trim():fcat.value,unit:funit.value,location:floc.value,stock:window.fstock?.value||0,min_stock:fmin.value,max_stock:fmax.value,cost:fcost.value,retail:fretail.value,wholesale:fwhole.value,wholesale_min:fwmin.value,promo:fpromo.value,promo_start:fpstart.value||null,promo_end:fpend.value||null};if((id&&!x.code)||!x.name.trim())return alert('Informe os campos obrigatórios.');if(fcat.value==='__new__'&&!x.category)return alert('Informe a nova categoria.');productSaving=true;try{let saved=await api('/products'+(id?'/'+id:''),{method:id?'PUT':'POST',body:JSON.stringify(x)});closeModal();toast('Produto '+saved.code+' salvo.');render('produtos')}catch(e){alert(e.message)}finally{productSaving=false}}
+async function saveProduct(id){if(productSaving)return;let x={code:id?fcode.value:undefined,ean:fean.value,name:fname.value,brand:fbrand.value,category:fcat.value==='__new__'?document.getElementById('fcatNew').value.trim():fcat.value,unit:funit.value,location:floc.value,stock:window.fstock?.value||0,min_stock:fmin.value,max_stock:fmax.value,cost:fcost.value,retail:fretail.value,wholesale:fwhole.value,wholesale_min:fwmin.value,promo:fpromo.value,promo_start:fpstart.value||null,promo_end:fpend.value||null,image_data:productImageData||null};if((id&&!x.code)||!x.name.trim())return alert('Informe os campos obrigatórios.');if(fcat.value==='__new__'&&!x.category)return alert('Informe a nova categoria.');productSaving=true;try{let saved=await api('/products'+(id?'/'+id:''),{method:id?'PUT':'POST',body:JSON.stringify(x)});closeModal();toast('Produto '+saved.code+' salvo.');render('produtos')}catch(e){alert(e.message)}finally{productSaving=false}}
 async function showProductHistory(id){let h=await api('/products/'+id+'/history'),p=h.product;modal(`<h3>${esc(p.code)} — ${esc(p.name)}</h3><div class=cards style="grid-template-columns:repeat(4,1fr)"><div class=card><small>Estoque</small><strong>${num(p.stock)} ${esc(p.unit)}</strong></div>${hasPerm('view_cost')?`<div class=card><small>Custo</small><strong>${money(p.cost)}</strong></div>`:''}<div class=card><small>Varejo</small><strong>${money(p.retail)}</strong></div><div class=card><small>Margem</small><strong>${margin(p.cost,p.retail)}%</strong></div></div><h4>Kardex / movimentações</h4><div class=scroll><table><tr><th>Data</th><th>Tipo</th><th>Qtd.</th><th>Antes</th><th>Depois</th><th>Usuário</th></tr>${h.movements.map(x=>`<tr><td>${new Date(x.created_at).toLocaleString('pt-BR')}</td><td>${esc(x.kind)}</td><td>${num(x.qty)}</td><td>${num(x.balance_before)}</td><td>${num(x.balance_after)}</td><td>${esc(x.user_name||'')}</td></tr>`).join('')}</table></div><button onclick=closeModal()>Fechar</button>`)}
 function openCash(){modal(`<h3>Abertura de caixa</h3><p class=muted>Operador: <b>${esc(me?.name||'')}</b></p><label>Valor inicial em dinheiro</label><input id=cashOpening type=number min=0 step=.01 value=0 autofocus><div style="margin-top:18px"><button class=primary onclick=confirmOpenCash()>ABRIR CAIXA</button> <button onclick=closeModal()>Cancelar</button></div>`);setTimeout(()=>cashOpening?.focus(),50)}async function confirmOpenCash(){let v=+cashOpening.value;if(v<0)return toast('Informe um valor válido.');try{await api('/cash/open',{method:'POST',body:JSON.stringify({opening_amount:v})});closeModal();toast('Caixa aberto.');render('pdv')}catch(e){toast(e.message)}}function cashMove(){modal(`<h3>Movimentação de caixa</h3><label>Tipo</label><select id=cashKind><option value=SUPRIMENTO>Suprimento</option><option value=SANGRIA>Sangria</option></select><label>Valor</label><input id=cashAmount type=number min=.01 step=.01 value=0><label>Descrição</label><input id=cashDesc placeholder="Motivo / observação"><div style="margin-top:18px"><button class=primary onclick=confirmCashMove()>Confirmar</button> <button onclick=closeModal()>Cancelar</button></div>`)}async function confirmCashMove(){let kind=cashKind.value,v=+cashAmount.value;if(v<=0)return toast('Informe um valor maior que zero.');try{await api('/cash/movement',{method:'POST',body:JSON.stringify({kind,description:cashDesc.value||kind,amount:Math.abs(v)})});closeModal();toast('Movimentação registrada.');render('dashboard')}catch(e){toast(e.message)}}async function closeCash(){let s=await api('/cash/summary');if(!s)return toast('Não há caixa aberto.');modal(`<h3>Fechamento de caixa</h3><div class=alert>Saldo esperado: <b>${money(s.expected)}</b></div><label>Valor contado</label><input id=cashCounted type=number min=0 step=.01 value="${+s.expected||0}"><div style="margin-top:18px"><button class=danger-btn onclick=confirmCloseCash()>FECHAR CAIXA</button> <button onclick=closeModal()>Cancelar</button></div>`)}async function confirmCloseCash(){let v=+cashCounted.value;try{let r=await api('/cash/close',{method:'POST',body:JSON.stringify({counted_amount:v})});closeModal();modal(`<h3>Caixa fechado</h3><div class=alert green>Fechamento concluído com sucesso.</div><p>Esperado: <b>${money(r.expected_amount)}</b><br>Contado: <b>${money(r.counted_amount)}</b><br>Diferença: <b>${money(r.difference)}</b></p><button class=primary onclick="closeModal();render('dashboard')">OK</button>`)}catch(e){toast(e.message)}}
 function cancelSale(id){modal(`<h3>Estornar venda #${id}</h3><div class=alert red>Esta operação devolverá os itens ao estoque.</div><label>Motivo do estorno</label><textarea id=cancelReason rows=3 placeholder="Informe o motivo"></textarea><div style="margin-top:18px"><button class=danger-btn onclick="confirmCancelSale(${id})">CONFIRMAR ESTORNO</button> <button onclick=closeModal()>Cancelar</button></div>`)}async function confirmCancelSale(id){let reason=cancelReason.value.trim();if(!reason)return toast('Informe o motivo do estorno.');try{await api('/sales/'+id+'/cancel',{method:'POST',body:JSON.stringify({reason})});closeModal();toast('Venda estornada.');render('vendas')}catch(e){toast(e.message)}}
