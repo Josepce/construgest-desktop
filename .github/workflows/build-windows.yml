@@ -4,7 +4,7 @@ name: Gerar Porto Prime Windows EXE
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/4.3.1-foto-produto]
     paths:
       - 'package.json'
       - 'package-lock.json'
