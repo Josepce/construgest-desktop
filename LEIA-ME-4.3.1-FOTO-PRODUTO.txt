@@ -1,0 +1,19 @@
+PORTO PRIME 4.3.1 — FOTO NO CADASTRO DE PRODUTOS
+
+Base: Porto Prime 4.3.0 estável.
+
+Novidade:
+- Campo de foto no cadastro e edição de produtos.
+- Upload de JPG, PNG e WEBP.
+- Pré-visualização da imagem antes de salvar.
+- Botão para remover a foto.
+- Redimensionamento automático para até 900 px.
+- Compressão em JPEG para economizar espaço.
+- Limite de segurança para evitar imagens muito pesadas.
+- Foto gravada no banco local do Porto Prime.
+- A listagem geral de produtos não carrega as imagens, preservando desempenho.
+
+Banco:
+- Nova coluna products.image_data (TEXT), criada com ALTER TABLE ... ADD COLUMN IF NOT EXISTS.
+
+Versão: 4.3.1
