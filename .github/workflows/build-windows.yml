@@ -66,6 +66,7 @@ jobs:
           node scripts/check-trial-license.cjs
           node scripts/check-products.mjs
           node scripts/check-product-photo.mjs
+          node scripts/check-startup-diagnostics.mjs
           node scripts/check-quote-search.cjs
           node scripts/check-pdv-keyboard.cjs
           node scripts/check-management-report.mjs
