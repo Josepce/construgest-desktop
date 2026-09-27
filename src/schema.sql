@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS financial_entries(id SERIAL PRIMARY KEY,kind TEXT NOT
 CREATE TABLE IF NOT EXISTS audit_logs(id BIGSERIAL PRIMARY KEY,user_id INT REFERENCES users(id),action TEXT NOT NULL,detail TEXT,created_at TIMESTAMPTZ DEFAULT now());
 CREATE INDEX IF NOT EXISTS idx_products_name ON products(name); CREATE INDEX IF NOT EXISTS idx_stock_product ON stock_movements(product_id); CREATE INDEX IF NOT EXISTS idx_sales_created ON sales(created_at);
 
-ALTER TABLE purchases ADD COLUMN IF NOT EXISTS invoice_number TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS image_data TEXT;\n\nALTER TABLE purchases ADD COLUMN IF NOT EXISTS invoice_number TEXT;
 ALTER TABLE purchases ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE purchases ADD COLUMN IF NOT EXISTS received_at TIMESTAMPTZ;
 ALTER TABLE financial_entries ADD COLUMN IF NOT EXISTS reference_type TEXT;
