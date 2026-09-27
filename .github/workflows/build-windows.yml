@@ -65,6 +65,7 @@ jobs:
           node scripts/check-critical-functions.cjs
           node scripts/check-trial-license.cjs
           node scripts/check-products.mjs
+          node scripts/check-product-photo.mjs
           node scripts/check-quote-search.cjs
           node scripts/check-pdv-keyboard.cjs
           node scripts/check-management-report.mjs
