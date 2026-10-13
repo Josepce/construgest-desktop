@@ -58,6 +58,8 @@ jobs:
 
       - name: Verificar sintaxe e testes criticos
         run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           Get-ChildItem src -Filter *.js | ForEach-Object { node --check $_.FullName }
           node --check src/trial-license.js
           node --check electron-main.cjs
