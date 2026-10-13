@@ -843,7 +843,6 @@ async function printPriceTable(){
     w.document.close();w.focus();
   }catch(e){w.close();toast(e.message)}
 }
-,'Financeiro','Gestão'],['metas-comissoes','◎','Metas e Comissões','Gestão'],['relatorios','▧','Relatórios Gerenciais','Gestão'],['usuarios','♟','Usuários','Administração'],['auditoria','▥','Auditoria','Administração'],['configuracoes','⚙','Configurações','Administração']];
 const ROLE_VIEWS={
   Administrador:['dashboard','caixa','pdv','vendas','novo-orcamento','orcamentos-salvos','produtos','reposicao','inteligencia-estoque','estoque','inventario','compras','fornecedores','clientes','financeiro','relatorios','usuarios','auditoria','configuracoes'],
   Gerente:['dashboard','caixa','pdv','vendas','novo-orcamento','orcamentos-salvos','produtos','reposicao','inteligencia-estoque','estoque','inventario','compras','fornecedores','clientes','financeiro','relatorios','auditoria'],
