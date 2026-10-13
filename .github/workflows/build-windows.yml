@@ -146,6 +146,18 @@ jobs:
 
           Write-Host "OK: $zip - $sizeMB MB"
 
+      - name: Disponibilizar arquivos para download
+        uses: actions/upload-artifact@v4
+        with:
+          name: PortoPrime-4.4.7-Windows
+          path: |
+            dist/PortoPrime-Portable-4.4.7-x64.exe
+            dist/PortoPrime-Setup-4.4.7-x64.exe
+            dist/PortoPrime-Atualizacao-4.4.7-x64.exe
+            dist/PortoPrime-4.4.7-Windows.zip
+          if-no-files-found: error
+          compression-level: 0
+
       - name: Publicar Release do Porto Prime
         if: github.ref == 'refs/heads/main'
         shell: pwsh
