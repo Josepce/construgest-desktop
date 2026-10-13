@@ -4,7 +4,7 @@ name: Gerar Porto Prime Windows EXE
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'fix/**']
     paths:
       - 'package.json'
       - 'package-lock.json'
@@ -147,6 +147,7 @@ jobs:
           Write-Host "OK: $zip - $sizeMB MB"
 
       - name: Publicar Release do Porto Prime
+        if: github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
