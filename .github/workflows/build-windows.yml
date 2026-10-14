@@ -4,7 +4,7 @@ name: Gerar Porto Prime Windows EXE
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'fix/**']
     paths:
       - 'package.json'
       - 'package-lock.json'
@@ -58,6 +58,8 @@ jobs:
 
       - name: Verificar sintaxe e testes criticos
         run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           Get-ChildItem src -Filter *.js | ForEach-Object { node --check $_.FullName }
           node --check src/trial-license.js
           node --check electron-main.cjs
@@ -144,7 +146,21 @@ jobs:
 
           Write-Host "OK: $zip - $sizeMB MB"
 
+      - name: Disponibilizar arquivos para download
+        uses: actions/upload-artifact@v4
+        continue-on-error: true # A cota de artefatos temporários não deve bloquear a publicação da Release
+        with:
+          name: PortoPrime-4.4.7-Windows
+          path: |
+            dist/PortoPrime-Portable-4.4.7-x64.exe
+            dist/PortoPrime-Setup-4.4.7-x64.exe
+            dist/PortoPrime-Atualizacao-4.4.7-x64.exe
+            dist/PortoPrime-4.4.7-Windows.zip
+          if-no-files-found: error
+          compression-level: 0
+
       - name: Publicar Release do Porto Prime
+        if: github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

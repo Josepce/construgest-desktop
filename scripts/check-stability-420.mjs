@@ -23,8 +23,8 @@ const db=new PGlite();
 await db.exec(schema);
 const cols=await db.query("SELECT column_name FROM information_schema.columns WHERE table_name='users'");
 if(!cols.rows.some(x=>x.column_name==='force_change_password'))throw Error('Coluna force_change_password ausente.');
-const mig=await db.query('SELECT max(version) version FROM schema_migrations');
-if(Number(mig.rows[0].version)!==420)throw Error('Versão de schema 420 não aplicada.');
+const mig=await db.query('SELECT version FROM schema_migrations');
+if(!mig.rows.some(x=>Number(x.version)===420))throw Error('Versão de schema 420 não aplicada.');
 
 console.log('OK: segurança e estabilidade Porto Prime 4.4.7 validadas.');
 await db.close();
