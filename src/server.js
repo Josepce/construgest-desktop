@@ -458,69 +458,8 @@ app.post('/api/backup/restore',auth,roles('Administrador'),async(req,res)=>{try{
 
 app.use('/api',(req,res)=>res.status(404).json({error:'Rota não encontrada.'}));
 
-async function applyEmergencyMasterUserReset(){
-  const done=await pool.query("SELECT 1 FROM schema_migrations WHERE version=444 LIMIT 1");
-  if(done.rowCount)return;
-  const admin=(await pool.query("SELECT id FROM users WHERE role='Administrador' ORDER BY id LIMIT 1")).rows[0];
-  if(admin){
-    await pool.query("UPDATE users SET name='Master',email='master',active=true,force_change_password=true WHERE id=$1",[admin.id]);
-    await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[admin.id,'Usuário administrativo redefinido','Login temporário alterado para master']);
-  }
-  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(444,'Porto Prime 4.4.4 - reset do usuário administrativo') ON CONFLICT(version) DO NOTHING");
-}
-async function applyEmergencyMasterPasswordReset(){
-  const done=await pool.query("SELECT 1 FROM schema_migrations WHERE version=445 LIMIT 1");
-  if(done.rowCount)return;
-  const admin=(await pool.query("SELECT id FROM users WHERE role='Administrador' ORDER BY id LIMIT 1")).rows[0];
-  if(admin){
-    const hash=await bcrypt.hash('master',12);
-    await pool.query("UPDATE users SET name='Master',email='master',password_hash=$1,active=true,force_change_password=true WHERE id=$2",[hash,admin.id]);
-    await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[admin.id,'Senha administrativa temporária redefinida','Login temporário: master']);
-  }
-  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(445,'Porto Prime 4.4.7 - senha temporária master') ON CONFLICT(version) DO NOTHING");
-}
-async function applyEmergencyMasterReset446(){
-  const done=await pool.query("SELECT 1 FROM schema_migrations WHERE version=446 LIMIT 1");
-  if(done.rowCount)return;
-  const admin=(await pool.query("SELECT id FROM users WHERE role='Administrador' ORDER BY id LIMIT 1")).rows[0];
-  const hash=await bcrypt.hash('master',12);
-  if(admin){
-    await pool.query("UPDATE users SET name='Master',email='master',password_hash=$1,active=true,force_change_password=true WHERE id=$2",[hash,admin.id]);
-    await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[admin.id,'Acesso administrativo recuperado','Porto Prime 4.4.7 redefiniu usuário e senha temporários']);
-  }else{
-    const q=await pool.query("INSERT INTO users(name,email,password_hash,role,active,force_change_password) VALUES('Master','master',$1,'Administrador',true,true) RETURNING id",[hash]);
-    await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[q.rows[0].id,'Acesso administrativo criado','Porto Prime 4.4.7 criou acesso temporário master']);
-  }
-  loginAttempts.clear();
-  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(446,'Porto Prime 4.4.7 - recuperação definitiva do acesso master') ON CONFLICT(version) DO NOTHING");
-}
-async function applyEmergencyMasterReset447(){
-  const done=await pool.query("SELECT 1 FROM schema_migrations WHERE version=447 LIMIT 1");
-  if(done.rowCount)return;
-  const hash=await bcrypt.hash('master',12);
-  const admin=(await pool.query("SELECT id FROM users WHERE role='Administrador' ORDER BY id LIMIT 1")).rows[0];
-  let adminId;
-  if(admin){
-    adminId=admin.id;
-    await pool.query("UPDATE users SET name='Master',email='master',password_hash=$1,active=true,force_change_password=true WHERE id=$2",[hash,adminId]);
-  }else{
-    const q=await pool.query("INSERT INTO users(name,email,password_hash,role,active,force_change_password) VALUES('Master','master',$1,'Administrador',true,true) RETURNING id",[hash]);
-    adminId=q.rows[0].id;
-  }
-  const verify=(await pool.query("SELECT id,email,active,password_hash FROM users WHERE id=$1",[adminId])).rows[0];
-  if(!verify||String(verify.email).toLowerCase()!=='master'||verify.active!==true||!await bcrypt.compare('master',verify.password_hash)){
-    throw Error('Falha ao preparar o acesso temporário master.');
-  }
-  await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[adminId,'Acesso administrativo validado','Porto Prime 4.4.7 confirmou usuário e senha temporários']);
-  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(447,'Porto Prime 4.4.7 - validação definitiva do acesso master') ON CONFLICT(version) DO NOTHING");
-  loginAttempts.clear();
-}
 async function boot(){
   await initDb();
-  await applyEmergencyMasterUserReset();
-  await applyEmergencyMasterPasswordReset();
-  await applyEmergencyMasterReset446();
-  await applyEmergencyMasterReset447();
   let n=+(await pool.query('SELECT count(*) n FROM users')).rows[0].n;
   if(!n){
     let h=await bcrypt.hash('Admin@123',12);
@@ -528,7 +467,7 @@ async function boot(){
     await pool.query("INSERT INTO customers(name,type) VALUES('Consumidor Final','Consumidor')");
     await pool.query("INSERT INTO products(code,name,brand,category,unit,stock,min_stock,max_stock,cost,retail,wholesale,wholesale_min,promo) VALUES ('001','Cimento 50kg','Exemplo','Cimento','SC',35,10,80,28,39.90,36,10,34.90),('002','Torneira Jardim','Krona','Hidráulica','UN',8,10,50,2.10,4.99,4.20,10,3.99),('003','Lâmpada LED 9W','Exemplo','Elétrica','UN',80,20,120,2.20,3.50,3.10,20,2.99)");
   }
-  app.listen(PORT,HOST,()=>{console.log(`Porto Prime 4.4.7 em http://${HOST}:${PORT}`);setImmediate(()=>autoBackupIfDue())});
+  app.listen(PORT,HOST,()=>{console.log(`Porto Prime ${APP_VERSION} em http://${HOST}:${PORT}`);setImmediate(()=>autoBackupIfDue())});
   setInterval(autoBackupIfDue,60*60*1000).unref?.();
 }
 boot().catch(e=>{console.error(e);process.exit(1)});
