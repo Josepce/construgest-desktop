@@ -12,12 +12,16 @@ Preparar o Porto Prime para os primeiros clientes pagantes, preservando o layout
 - [ ] Confirmar que o instalador/atualizador preserva o diretório de dados do cliente.
 
 ## Etapa 2 — segurança antes de vender
-- [ ] Revisar acesso local às rotas de recuperação de senha e limitar tentativas.
-- [ ] Verificar isolamento do Electron, navegação externa, permissões e origem das requisições.
-- [ ] Revisar autenticação, autorização por função e trilha de auditoria.
+- [x] Acrescentar código secreto local e limite de tentativas às rotas de recuperação (aguardando teste funcional Windows).
+- [x] Acrescentar isolamento do Electron e bloqueio de navegação externa (aguardando teste funcional Windows).
+- [ ] Auditar e testar a origem das requisições, inclusive em modo LAN.
+- [x] Corrigir exposição de custo na rota de reposição de estoque, conforme permissão view_cost.
+- [ ] Completar auditoria de autenticação, autorização em todas as rotas e trilha de auditoria.
 - [ ] Revisar o armazenamento e a recuperação de backups, incluindo teste real de restauração.
 - [ ] Avaliar a exposição do código-fonte e mover o repositório para privado antes de distribuir comercialmente, se não houver motivo para mantê-lo público.
+- [x] Verificar a consistência entre registros de demonstração e adicionar casos de corrupção/adulteração aos testes.
 - [ ] Revisar emissão, expiração, revogação e vinculação das licenças.
+- [ ] Substituir a proteção fraca contra adulteração offline baseada em segredo embutido; não prometer inviolabilidade de trial local.
 
 ## Etapa 3 — experiência comercial
 - [ ] Testar cadastro/importação de produtos, clientes e fornecedores.
