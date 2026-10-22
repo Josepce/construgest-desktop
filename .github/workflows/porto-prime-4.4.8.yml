@@ -56,13 +56,26 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
+      - name: Criar ZIP dos executaveis Windows
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $files = @(Get-ChildItem dist -Filter "PortoPrime-*.exe" -File | Where-Object { $_.Name -notlike "*.__uninstaller.exe" })
+          if ($files.Count -lt 2) { throw "Esperados pelo menos dois executaveis; encontrados: $($files.Count)" }
+          $zip = "dist/PortoPrime-$version-Windows.zip"
+          Compress-Archive -Path $files.FullName -DestinationPath $zip -Force
+          if (-not (Test-Path $zip) -or (Get-Item $zip).Length -lt 1MB) { throw "ZIP ausente ou suspeito: $zip" }
+          Write-Host "ZIP criado: $zip"
+
       - name: Publicar artefatos para download
         uses: actions/upload-artifact@v4
+        continue-on-error: true # A cota temporaria pode estar cheia; o build e o ZIP devem continuar disponiveis no log
         with:
-          name: PortoPrime-4.4.8-Windows
+          name: PortoPrime-Windows-${{ github.run_number }}
           path: |
-            dist/**/*.exe
-            dist/**/*.blockmap
-            dist/**/*.yml
+            dist/PortoPrime-*.exe
+            dist/PortoPrime-*.zip
+            dist/PortoPrime-*.blockmap
+            dist/PortoPrime-*.yml
           if-no-files-found: error
           retention-days: 14
