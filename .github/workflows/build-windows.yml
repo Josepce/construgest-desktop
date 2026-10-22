@@ -78,6 +78,7 @@ jobs:
           node scripts/check-password-recovery.cjs
           node scripts/check-security-recovery.cjs
           node scripts/check-commercial-permissions.cjs
+          node scripts/check-sale-idempotency.cjs
 
       - name: Gerar EXE portatil e instalador
         run: npx electron-builder --win portable nsis --x64 --publish never
