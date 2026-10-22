@@ -1,4 +1,5 @@
 import {nextProductCode} from './product-codes.js';
+import {createRecoverySecurity} from './recovery-security.js';
 import express from 'express'; import os from 'os'; import fs from 'fs'; import crypto from 'crypto'; import * as XLSX from 'xlsx'; import bcrypt from 'bcryptjs'; import jwt from 'jsonwebtoken'; import path from 'path'; import { fileURLToPath } from 'url'; import {pool,initDb,tx} from './db.js'; import {createTrialManager} from './trial-license.js'; import {getManagementReport,validateManagementPeriod} from './management-report.js'; import {getSellerPerformance,validateMonthKey} from './seller-performance.js'; import {getStockIntelligence} from './stock-intelligence.js';
 const app=express(), PORT=process.env.PORT||3000, HOST=process.env.HOST||'127.0.0.1', SECRET=process.env.JWT_SECRET||crypto.randomBytes(32).toString('hex'); const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const APP_VERSION=JSON.parse(fs.readFileSync(path.join(__dirname,'..','package.json'),'utf8')).version; const publicDir=path.join(__dirname,'..','public'); app.disable('x-powered-by'); app.use(express.json({limit:'50mb'})); app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next()}); app.use((req,res,next)=>{if(req.path==='/'||req.path.endsWith('.html'))res.set('Cache-Control','no-store, no-cache, must-revalidate');next()}); app.use(express.static(publicDir,{etag:true,lastModified:true,maxAge:'1h',setHeaders:(res,file)=>{if(file.includes(path.sep+'assets'+path.sep))res.setHeader('Cache-Control','public, max-age=604800')}}));
@@ -8,6 +9,7 @@ MCowBQYDK2VwAyEAbZbg2eDV1nH2KTVbO6pcNt920IbcQHDo4uLD6tx6O78=
 -----END PUBLIC KEY-----`;
 const LICENSE_DIR=process.env.PORTO_PRIME_LICENSE_DIR||process.env.ELECTRON_DATA_DIR||path.join(process.cwd(),'.porto-prime');
 const LICENSE_FILE=path.join(LICENSE_DIR,'porto-prime.license');
+const recoverySecurity=createRecoverySecurity(LICENSE_DIR);
 const MACHINE_ID=String(process.env.PORTO_PRIME_MACHINE_ID||crypto.createHash('sha256').update('PORTO-PRIME|'+os.hostname()+'|'+process.platform+'|'+process.arch).digest('hex').slice(0,24)).toUpperCase();
 const trialManager=createTrialManager({directory:LICENSE_DIR,machineId:MACHINE_ID});
 const b64urlDecode=x=>Buffer.from(String(x||'').replace(/-/g,'+').replace(/_/g,'/'),'base64');
@@ -63,8 +65,9 @@ app.get('/api/auth/recovery-info',async(req,res)=>{if(!localRequest(req))return 
   const q=await pool.query("SELECT email FROM users WHERE role='Administrador' AND active=true ORDER BY id LIMIT 1");
   res.json({machineId:MACHINE_ID,email:q.rows[0]?.email||''});
 }catch(e){res.status(500).json({error:'Não foi possível preparar a recuperação.'})}});
-app.post('/api/auth/recover-admin',async(req,res)=>{if(!localRequest(req))return res.status(403).json({error:'Recuperação disponível somente neste computador.'});try{
+app.post('/api/auth/recover-admin',loginGuard,async(req,res)=>{if(!localRequest(req))return res.status(403).json({error:'Recuperação disponível somente neste computador.'});try{
   const machineId=String(req.body?.machineId||'').trim().toUpperCase(),email=String(req.body?.email||'').trim(),password=String(req.body?.password||'');
+  if(!recoverySecurity.verify(String(req.body?.recoveryCode||''))){loginFail(req);return res.status(403).json({error:'Código de recuperação inválido. Consulte o arquivo local de recuperação do Porto Prime.'})}
   if(machineId!==MACHINE_ID)throw Error('ID deste computador não confere.');
   if(password.length<6)throw Error('A nova senha deve ter pelo menos 6 caracteres.');
   const q=await pool.query("SELECT id,email FROM users WHERE role='Administrador' AND active=true AND lower(email)=lower($1) ORDER BY id LIMIT 1",[email]);
@@ -459,6 +462,7 @@ app.post('/api/backup/restore',auth,roles('Administrador'),async(req,res)=>{try{
 app.use('/api',(req,res)=>res.status(404).json({error:'Rota não encontrada.'}));
 
 async function boot(){
+  recoverySecurity.ensureCode();
   await initDb();
   let n=+(await pool.query('SELECT count(*) n FROM users')).rows[0].n;
   if(!n){
