@@ -39,6 +39,7 @@ jobs:
           npm run check:critical
           npm run check:password-recovery
           node scripts/check-security-recovery.cjs
+          node scripts/check-commercial-permissions.cjs
           npm run check:server
           npm run check:data-directory
 
