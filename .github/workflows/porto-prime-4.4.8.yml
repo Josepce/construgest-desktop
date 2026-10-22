@@ -39,6 +39,7 @@ jobs:
           npm run check:critical
           npm run check:password-recovery
           node scripts/check-security-recovery.cjs
+          node scripts/check-print-windows.cjs
           node scripts/check-commercial-permissions.cjs
           node scripts/check-sale-idempotency.cjs
           npm run check:server
