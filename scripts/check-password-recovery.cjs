@@ -12,7 +12,7 @@ const checks=[
   [server.includes("loginAttempts.clear()"),'limpeza do bloqueio de login ausente'],
   [!server.includes("applyEmergencyMasterUserReset")&&!server.includes("applyEmergencyMasterPasswordReset")&&!server.includes("applyEmergencyMasterReset446")&&!server.includes("applyEmergencyMasterReset447"),'reset automático de credenciais temporárias ainda existe'],
   [!server.includes("bcrypt.hash('master',12)"),'senha master temporária ainda é gerada automaticamente'],
-  [server.includes("if(isLocalLoginRequest(req))return next()"),'login local ainda pode ser bloqueado por tentativas'],
+  [server.includes('function loginGuard(req,res,next){let k=loginKey(req)')&&!server.includes('function loginGuard(req,res,next){if(isLocalLoginRequest(req))'),'proteção contra tentativas de login, inclusive locais, ausente'],
   [app.includes("togglePasswordRecovery"),'função de recuperação na interface ausente'],
   [app.includes("savePasswordRecovery"),'salvamento da nova senha ausente'],
   [index.includes("passwordRecoveryBox")&&index.includes("Recuperar acesso"),'botão de recuperação ausente'],
