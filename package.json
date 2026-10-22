@@ -23,7 +23,8 @@
     "check:stock-intelligence": "node scripts/check-stock-intelligence.mjs",
     "check:seller-performance": "node scripts/check-seller-performance.mjs",
     "check:data-directory": "node scripts/check-data-directory.cjs",
-    "check:password-recovery": "node scripts/check-password-recovery.cjs"
+    "check:password-recovery": "node scripts/check-password-recovery.cjs",
+    "check:sale-idempotency": "node scripts/check-sale-idempotency.cjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
