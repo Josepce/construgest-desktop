@@ -28,15 +28,17 @@ export function createTrialManager({directory,machineId,now=()=>Date.now()}){
   const validForMachine=x=>verifyRecord(x)&&x.product==='PORTO_PRIME'&&x.v===1&&String(x.machineId||'').toUpperCase()===machineId;
   function unavailable(error,extra={}){return {active:false,accessMode:'trial',available:false,used:true,error,...extra}}
   function status({touch=true}={}){
-    let record;
-    try{record=read(trialFile)}catch{
-      try{
-        const guard=read(guardFile);
-        if(validForMachine(guard))return unavailable('A demonstração gratuita já foi utilizada neste computador.',{expired:true,startedAt:guard.startedAt||null});
-      }catch{}
-      return {active:false,accessMode:'trial',available:true,used:false,daysTotal:TRIAL_DAYS};
+    let record,guard;
+    const trialPresent=fs.existsSync(trialFile),guardPresent=fs.existsSync(guardFile);
+    if(!trialPresent&&!guardPresent)return {active:false,accessMode:'trial',available:true,used:false,daysTotal:TRIAL_DAYS};
+    if(trialPresent){try{record=read(trialFile)}catch{return unavailable('Os dados da demonstração não puderam ser lidos.',{tampered:true})}}
+    if(guardPresent){try{guard=read(guardFile)}catch{return unavailable('O registro de proteção da demonstração está inválido.',{tampered:true})}}
+    if(guard&&!validForMachine(guard))return unavailable('O registro de proteção da demonstração foi alterado.',{tampered:true});
+    if(!record){
+      return unavailable('A demonstração gratuita já foi utilizada neste computador.',{expired:true,startedAt:guard?.startedAt||null});
     }
     if(!validForMachine(record))return unavailable('Os dados da demonstração estão inválidos ou foram alterados.',{tampered:true});
+    if(!guard||guard.startedAt!==record.startedAt)return unavailable('Os registros da demonstração estão ausentes ou inconsistentes.',{tampered:true});
     const current=now(),startedAt=Date.parse(record.startedAt),expiresAt=Date.parse(record.expiresAt),lastSeenAt=Date.parse(record.lastSeenAt||record.startedAt);
     if(!Number.isFinite(startedAt)||!Number.isFinite(expiresAt)||expiresAt-startedAt!==TRIAL_DAYS*DAY_MS)return unavailable('Os dados da demonstração estão inválidos.',{tampered:true});
     if(current+5*60*1000<lastSeenAt)return unavailable('A data ou hora do computador foi alterada. Corrija-a para continuar.',{clockError:true,startedAt:record.startedAt,expiresAt:record.expiresAt});

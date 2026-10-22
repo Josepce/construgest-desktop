@@ -5,6 +5,7 @@ const server=fs.readFileSync(new URL('../src/server.js',import.meta.url),'utf8')
 const electron=fs.readFileSync(new URL('../electron-main.cjs',import.meta.url),'utf8');
 const index=fs.readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
 const schema=fs.readFileSync(new URL('../src/schema.sql',import.meta.url),'utf8');
+const version=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8')).version;
 
 const required=[
   ["local-only padrão",electron.includes("PORTO_PRIME_LAN==='1'?'0.0.0.0':'127.0.0.1'")],
@@ -15,9 +16,9 @@ const required=[
   ["cabeçalhos de segurança",server.includes("X-Content-Type-Options")&&server.includes("X-Frame-Options")],
   ["motor único de vendas",server.includes("async function finalizeSaleCore")&&server.includes("/api/sales-v42")&&server.includes("saleRoute")],
   ["integridade de backup",server.includes("integrity_sha256")&&server.includes("backupDigest")],
-  ["versão 4.4.7",index.includes("4.4.7")]
+  ["versão no HTML",index.includes(version)]
 ];
-for(const [name,ok] of required)if(!ok)throw Error('Falha de estabilidade 4.4.7: '+name);
+for(const [name,ok] of required)if(!ok)throw Error('Falha de estabilidade Porto Prime: '+name);
 
 const db=new PGlite();
 await db.exec(schema);
@@ -26,5 +27,5 @@ if(!cols.rows.some(x=>x.column_name==='force_change_password'))throw Error('Colu
 const mig=await db.query('SELECT version FROM schema_migrations');
 if(!mig.rows.some(x=>Number(x.version)===420))throw Error('Versão de schema 420 não aplicada.');
 
-console.log('OK: segurança e estabilidade Porto Prime 4.4.7 validadas.');
+console.log('OK: segurança e estabilidade Porto Prime validadas.');
 await db.close();

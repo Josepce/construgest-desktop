@@ -1,4 +1,5 @@
 import {nextProductCode} from './product-codes.js';
+import {createRecoverySecurity} from './recovery-security.js';
 import express from 'express'; import os from 'os'; import fs from 'fs'; import crypto from 'crypto'; import * as XLSX from 'xlsx'; import bcrypt from 'bcryptjs'; import jwt from 'jsonwebtoken'; import path from 'path'; import { fileURLToPath } from 'url'; import {pool,initDb,tx} from './db.js'; import {createTrialManager} from './trial-license.js'; import {getManagementReport,validateManagementPeriod} from './management-report.js'; import {getSellerPerformance,validateMonthKey} from './seller-performance.js'; import {getStockIntelligence} from './stock-intelligence.js';
 const app=express(), PORT=process.env.PORT||3000, HOST=process.env.HOST||'127.0.0.1', SECRET=process.env.JWT_SECRET||crypto.randomBytes(32).toString('hex'); const __dirname=path.dirname(fileURLToPath(import.meta.url));
 const APP_VERSION=JSON.parse(fs.readFileSync(path.join(__dirname,'..','package.json'),'utf8')).version; const publicDir=path.join(__dirname,'..','public'); app.disable('x-powered-by'); app.use(express.json({limit:'50mb'})); app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next()}); app.use((req,res,next)=>{if(req.path==='/'||req.path.endsWith('.html'))res.set('Cache-Control','no-store, no-cache, must-revalidate');next()}); app.use(express.static(publicDir,{etag:true,lastModified:true,maxAge:'1h',setHeaders:(res,file)=>{if(file.includes(path.sep+'assets'+path.sep))res.setHeader('Cache-Control','public, max-age=604800')}}));
@@ -8,6 +9,7 @@ MCowBQYDK2VwAyEAbZbg2eDV1nH2KTVbO6pcNt920IbcQHDo4uLD6tx6O78=
 -----END PUBLIC KEY-----`;
 const LICENSE_DIR=process.env.PORTO_PRIME_LICENSE_DIR||process.env.ELECTRON_DATA_DIR||path.join(process.cwd(),'.porto-prime');
 const LICENSE_FILE=path.join(LICENSE_DIR,'porto-prime.license');
+const recoverySecurity=createRecoverySecurity(LICENSE_DIR);
 const MACHINE_ID=String(process.env.PORTO_PRIME_MACHINE_ID||crypto.createHash('sha256').update('PORTO-PRIME|'+os.hostname()+'|'+process.platform+'|'+process.arch).digest('hex').slice(0,24)).toUpperCase();
 const trialManager=createTrialManager({directory:LICENSE_DIR,machineId:MACHINE_ID});
 const b64urlDecode=x=>Buffer.from(String(x||'').replace(/-/g,'+').replace(/_/g,'/'),'base64');
@@ -53,8 +55,8 @@ async function audit(c,u,a,d=''){await c.query('INSERT INTO audit_logs(user_id,a
 const loginAttempts=new Map();
 const isLocalLoginRequest=req=>['127.0.0.1','::1','::ffff:127.0.0.1'].includes(String(req.ip||req.socket?.remoteAddress||''));
 const loginKey=req=>String(req.ip||req.socket?.remoteAddress||'local')+'|'+String(req.body?.email||'').trim().toLowerCase();
-function loginGuard(req,res,next){if(isLocalLoginRequest(req))return next();let k=loginKey(req),x=loginAttempts.get(k);if(x?.blockedUntil>Date.now())return res.status(429).json({error:'Muitas tentativas de acesso. Aguarde alguns minutos e tente novamente.'});next()}
-function loginFail(req){if(isLocalLoginRequest(req))return;let k=loginKey(req),x=loginAttempts.get(k)||{count:0,blockedUntil:0};x.count++;if(x.count>=5){x.blockedUntil=Date.now()+5*60*1000;x.count=0}loginAttempts.set(k,x);if(loginAttempts.size>1000){for(const [key,v] of loginAttempts){if(!v.blockedUntil||v.blockedUntil<Date.now())loginAttempts.delete(key);if(loginAttempts.size<=500)break}}}
+function loginGuard(req,res,next){let k=loginKey(req),x=loginAttempts.get(k);if(x?.blockedUntil>Date.now())return res.status(429).json({error:'Muitas tentativas de acesso. Aguarde alguns minutos e tente novamente.'});next()}
+function loginFail(req){let k=loginKey(req),x=loginAttempts.get(k)||{count:0,blockedUntil:0};x.count++;if(x.count>=5){x.blockedUntil=Date.now()+5*60*1000;x.count=0}loginAttempts.set(k,x);if(loginAttempts.size>1000){for(const [key,v] of loginAttempts){if(!v.blockedUntil||v.blockedUntil<Date.now())loginAttempts.delete(key);if(loginAttempts.size<=500)break}}}
 function loginSuccess(req){loginAttempts.delete(loginKey(req))}
 function publicUser(u){return {id:u.id,name:u.name,email:u.email,role:u.role,permissions:mergedPerms(u),must_change_password:!!u.force_change_password}}
 app.post('/api/auth/login',loginGuard,async(req,res)=>{try{const email=String(req.body?.email||'').trim(),password=String(req.body?.password||'');if(!email||!password){loginFail(req);return res.status(401).json({error:'E-mail ou senha incorretos.'})}const q=await pool.query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[email]);if(!q.rowCount||!await bcrypt.compare(password,q.rows[0].password_hash)){loginFail(req);return res.status(401).json({error:'E-mail ou senha incorretos.'})}let u=q.rows[0];loginSuccess(req);await audit(pool,u.id,'Login realizado',req.ip||'local');res.json({token:sign(u),user:publicUser(u)})}catch(e){res.status(500).json({error:'Não foi possível concluir o login.'})}});
@@ -63,8 +65,9 @@ app.get('/api/auth/recovery-info',async(req,res)=>{if(!localRequest(req))return 
   const q=await pool.query("SELECT email FROM users WHERE role='Administrador' AND active=true ORDER BY id LIMIT 1");
   res.json({machineId:MACHINE_ID,email:q.rows[0]?.email||''});
 }catch(e){res.status(500).json({error:'Não foi possível preparar a recuperação.'})}});
-app.post('/api/auth/recover-admin',async(req,res)=>{if(!localRequest(req))return res.status(403).json({error:'Recuperação disponível somente neste computador.'});try{
+app.post('/api/auth/recover-admin',loginGuard,async(req,res)=>{if(!localRequest(req))return res.status(403).json({error:'Recuperação disponível somente neste computador.'});try{
   const machineId=String(req.body?.machineId||'').trim().toUpperCase(),email=String(req.body?.email||'').trim(),password=String(req.body?.password||'');
+  if(!recoverySecurity.verify(String(req.body?.recoveryCode||''))){loginFail(req);return res.status(403).json({error:'Código de recuperação inválido. Consulte o arquivo local de recuperação do Porto Prime.'})}
   if(machineId!==MACHINE_ID)throw Error('ID deste computador não confere.');
   if(password.length<6)throw Error('A nova senha deve ter pelo menos 6 caracteres.');
   const q=await pool.query("SELECT id,email FROM users WHERE role='Administrador' AND active=true AND lower(email)=lower($1) ORDER BY id LIMIT 1",[email]);
@@ -100,8 +103,8 @@ function readProductWorkbook(base64){let wb=XLSX.read(Buffer.from(String(base64|
 app.post('/api/products/import-preview',auth,roles('Administrador','Gerente','Estoquista'),async(req,res)=>{try{let rows=readProductWorkbook(req.body.base64);if(!rows.length)throw Error('Nenhum produto válido encontrado na planilha.');if(rows.length>5000)throw Error('A planilha excede o limite de 5.000 produtos.');let codes=rows.map(x=>x.code).filter(Boolean),existing=[];if(codes.length){let q=await pool.query('SELECT code FROM products');let wanted=new Set(codes);existing=q.rows.map(x=>x.code).filter(x=>wanted.has(x))}let set=new Set(existing);res.json({rows:rows.map(x=>({...x,exists:set.has(x.code)})),total:rows.length,existing:rows.filter(x=>set.has(x.code)).length,new_count:rows.filter(x=>!set.has(x.code)).length})}catch(e){res.status(400).json({error:e.message})}});
 app.post('/api/products/import',auth,roles('Administrador','Gerente','Estoquista'),async(req,res)=>{try{let rows=readProductWorkbook(req.body.base64),mode=String(req.body.mode||'skip');if(!['skip','update'].includes(mode))throw Error('Modo de importação inválido.');if(!rows.length)throw Error('Nenhum produto válido encontrado.');let result=await tx(async c=>{let created=0,updated=0,skipped=0,errors=[];for(let [i,x] of rows.entries()){try{if(!x.code||!x.name){errors.push('Linha '+(i+2)+': código ou descrição ausente.');continue}let old=await c.query('SELECT * FROM products WHERE code=$1',[x.code]);if(old.rowCount){if(mode==='skip'){skipped++;continue}await c.query(`UPDATE products SET name=$1,brand=$2,category=$3,unit=$4,cost=$5,retail=$6,ean=$7,active=true,updated_at=now() WHERE code=$8`,[x.name,x.brand,x.category,x.unit,x.cost,x.retail,x.ean||null,x.code]);updated++}else{let q=await c.query(`INSERT INTO products(code,ean,name,brand,category,unit,stock,cost,retail) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,[x.code,x.ean||null,x.name,x.brand,x.category,x.unit,x.stock,x.cost,x.retail]);if(x.stock>0)await c.query("INSERT INTO stock_movements(product_id,user_id,kind,qty,balance_before,balance_after,reference_type,reference_id,note) VALUES($1,$2,'ESTOQUE INICIAL',$3,0,$3,'IMPORT',$1,'Importação de backup de produtos')",[q.rows[0].id,req.user.id,x.stock]);created++}}catch(e){errors.push('Linha '+(i+2)+': '+e.message)}}await audit(c,req.user.id,'Backup de produtos importado',`Novos ${created} • atualizados ${updated} • ignorados ${skipped} • erros ${errors.length}`);return {created,updated,skipped,errors}});res.json(result)}catch(e){res.status(400).json({error:e.message})}});
 app.get('/api/products/export',auth,roles('Administrador','Gerente','Estoquista'),async(req,res)=>{try{let rows=(await pool.query("SELECT code,name,brand,category,unit,cost,retail,stock,COALESCE(ean,'') ean FROM products WHERE active=true ORDER BY name")).rows,data=rows.map(x=>({'Código':x.code,'Descrição':x.name,'Marca':x.brand||'','Categoria':x.category||'','Unidade':x.unit||'UN','Preço de Custo':+x.cost||0,'Preço de Venda':+x.retail||0,'Estoque':+x.stock||0,'Código de Barras':x.ean||''})),wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(data);XLSX.utils.book_append_sheet(wb,ws,'Produtos');let buf=XLSX.write(wb,{type:'buffer',bookType:'xlsx'});await audit(pool,req.user.id,'Backup de produtos exportado',rows.length+' produto(s)');res.json({filename:'Backup_Produtos_PortoPrime_'+new Date().toISOString().slice(0,10)+'.xlsx',base64:buf.toString('base64'),count:rows.length})}catch(e){res.status(400).json({error:e.message})}});
-app.post('/api/products',auth,roles('Administrador','Gerente','Estoquista'),async(req,res)=>{try{let x={...req.body};x.name=String(x.name||'').trim();x.category=String(x.category||'').trim();if(!x.name)throw Error('Informe o nome do produto.');let nums=['stock','min_stock','max_stock','cost','retail','wholesale','wholesale_min','promo'];for(const k of nums)if(!Number.isFinite(+(x[k]||0))||+(x[k]||0)<0)throw Error('Valores de estoque, custo e preços não podem ser negativos.');let prod=await tx(async c=>{x.code=await nextProductCode(c,true);let q=await c.query(`INSERT INTO products(code,ean,name,brand,category,unit,location,stock,min_stock,max_stock,cost,retail,wholesale,wholesale_min,promo,promo_start,promo_end) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,[x.code,x.ean||null,x.name,x.brand,x.category,x.unit,x.location,+x.stock||0,+x.min_stock||0,+x.max_stock||0,+x.cost||0,+x.retail||0,+x.wholesale||0,+x.wholesale_min||0,+x.promo||0,x.promo_start||null,x.promo_end||null]);let prod=q.rows[0];if(+prod.stock>0)await c.query("INSERT INTO stock_movements(product_id,user_id,kind,qty,balance_before,balance_after,reference_type,reference_id,note) VALUES($1,$2,'ESTOQUE INICIAL',$3,0,$3,'PRODUCT',$1,'Saldo informado no cadastro')",[prod.id,req.user.id,+prod.stock]);await c.query('INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)',[req.user.id,'Produto cadastrado',x.name]);return prod});res.status(201).json(prod)}catch(e){res.status(400).json({error:e.message})}});
-app.put('/api/products/:id',auth,roles('Administrador','Gerente','Estoquista'),async(req,res)=>{let x=req.body;let q=await pool.query(`UPDATE products SET code=$1,ean=$2,name=$3,brand=$4,category=$5,unit=$6,location=$7,min_stock=$8,max_stock=$9,cost=$10,retail=$11,wholesale=$12,wholesale_min=$13,promo=$14,promo_start=$15,promo_end=$16,updated_at=now() WHERE id=$17 RETURNING *`,[x.code,x.ean||null,x.name,x.brand,x.category,x.unit,x.location,+x.min_stock||0,+x.max_stock||0,+x.cost||0,+x.retail||0,+x.wholesale||0,+x.wholesale_min||0,+x.promo||0,x.promo_start||null,x.promo_end||null,req.params.id]);res.json(q.rows[0])});
+app.post('/api/products',auth,roles('Administrador','Gerente','Estoquista'),async(req,res)=>{try{let x={...req.body};if(x.image_data&&(!/^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(x.image_data)||x.image_data.length>4*1024*1024))throw Error('Imagem inválida ou maior que 3 MB. Use JPG, PNG, WEBP ou GIF.');x.name=String(x.name||'').trim();x.category=String(x.category||'').trim();if(!x.name)throw Error('Informe o nome do produto.');let nums=['stock','min_stock','max_stock','cost','retail','wholesale','wholesale_min','promo'];for(const k of nums)if(!Number.isFinite(+(x[k]||0))||+(x[k]||0)<0)throw Error('Valores de estoque, custo e preços não podem ser negativos.');let prod=await tx(async c=>{x.code=await nextProductCode(c,true);let q=await c.query(`INSERT INTO products(code,ean,name,brand,category,unit,location,image_data,stock,min_stock,max_stock,cost,retail,wholesale,wholesale_min,promo,promo_start,promo_end) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,[x.code,x.ean||null,x.name,x.brand,x.category,x.unit,x.location,x.image_data||null,+x.stock||0,+x.min_stock||0,+x.max_stock||0,+x.cost||0,+x.retail||0,+x.wholesale||0,+x.wholesale_min||0,+x.promo||0,x.promo_start||null,x.promo_end||null]);let prod=q.rows[0];if(+prod.stock>0)await c.query("INSERT INTO stock_movements(product_id,user_id,kind,qty,balance_before,balance_after,reference_type,reference_id,note) VALUES($1,$2,'ESTOQUE INICIAL',$3,0,$3,'PRODUCT',$1,'Saldo informado no cadastro')",[prod.id,req.user.id,+prod.stock]);await c.query('INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)',[req.user.id,'Produto cadastrado',x.name]);return prod});res.status(201).json(prod)}catch(e){res.status(400).json({error:e.message})}});
+app.put('/api/products/:id',auth,roles('Administrador','Gerente','Estoquista'),async(req,res)=>{let x=req.body;if(x.image_data&&(!/^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(x.image_data)||x.image_data.length>4*1024*1024))return res.status(400).json({error:'Imagem inválida ou maior que 3 MB. Use JPG, PNG, WEBP ou GIF.'});let q=await pool.query(`UPDATE products SET code=$1,ean=$2,name=$3,brand=$4,category=$5,unit=$6,location=$7,image_data=$8,min_stock=$9,max_stock=$10,cost=$11,retail=$12,wholesale=$13,wholesale_min=$14,promo=$15,promo_start=$16,promo_end=$17,updated_at=now() WHERE id=$18 RETURNING *`,[x.code,x.ean||null,x.name,x.brand,x.category,x.unit,x.location,x.image_data||null,+x.min_stock||0,+x.max_stock||0,+x.cost||0,+x.retail||0,+x.wholesale||0,+x.wholesale_min||0,+x.promo||0,x.promo_start||null,x.promo_end||null,req.params.id]);res.json(q.rows[0])});
 for(const [route,table] of [['customers','customers'],['suppliers','suppliers']]){app.get('/api/'+route,auth,async(req,res)=>res.json((await pool.query(`SELECT * FROM ${table} ORDER BY name`)).rows));app.post('/api/'+route,auth,async(req,res)=>{let x=req.body,q=await pool.query(`INSERT INTO ${table}(name,doc,phone,email,address) VALUES($1,$2,$3,$4,$5) RETURNING *`,[x.name,x.doc||'',x.phone||'',x.email||'',x.address||'']);res.status(201).json(q.rows[0])})}
 app.post('/api/cash/open',auth,roles('Administrador','Gerente','Caixa'),async(req,res)=>{let exists=await pool.query("SELECT * FROM cash_sessions WHERE status='OPEN' ORDER BY id DESC LIMIT 1");if(exists.rowCount)return res.status(409).json({error:'Já existe um caixa aberto.'});let opening=+req.body.opening_amount;if(!Number.isFinite(opening)||opening<0)return res.status(400).json({error:'Valor de abertura inválido.'});let q=await pool.query('INSERT INTO cash_sessions(user_id,opening_amount) VALUES($1,$2) RETURNING *',[req.user.id,opening]);await audit(pool,req.user.id,'Caixa aberto','Caixa #'+q.rows[0].id+' • abertura '+opening.toFixed(2));res.status(201).json(q.rows[0])});
 app.get('/api/cash/current',auth,async(req,res)=>{let q=await pool.query("SELECT c.*,u.name operator FROM cash_sessions c JOIN users u ON u.id=c.user_id WHERE c.status='OPEN' ORDER BY c.id DESC LIMIT 1");res.json(q.rows[0]||null)});
@@ -121,8 +124,28 @@ app.get('/api/cash/history',auth,roles('Administrador','Gerente','Caixa'),async(
 app.get('/api/cash/report/:id',auth,roles('Administrador','Gerente','Caixa'),async(req,res)=>{let r=await cashReport(+req.params.id);if(!r)return res.status(404).json({error:'Caixa não encontrado.'});res.json(r)});
 
 async function currentSettings(c=pool){let q=await c.query('SELECT data FROM app_settings WHERE id=1');return q.rows[0]?.data||{}}
+function saleRequestFingerprint(req){
+ const body=req.body||{};
+ const items=Array.isArray(body.items)?body.items.map(i=>({product_id:String(i?.product_id??''),qty:Number(i?.qty),unit_price:i?.unit_price===undefined||i?.unit_price===null||i?.unit_price===''?null:Number(i.unit_price)})):[];
+ const payments=Array.isArray(body.payments)?body.payments.map(p=>({method:String(p?.method||''),amount:Number(p?.amount)})):[];
+ return crypto.createHash('sha256').update(JSON.stringify({user_id:req.user?.id??null,customer_id:body.customer_id??null,quote_id:body.quote_id??null,discount_percent:body.discount_percent??null,discount:body.discount??null,payment_method:body.payment_method??null,items,payments})).digest('hex');
+}
+function safeSaleResponse(sale){const {idempotency_key,request_hash,...safe}=sale;return safe;}
 async function finalizeSaleCore(req){
+ const idempotencyKey=String(req.body?.request_id||'').trim();
+ if(idempotencyKey&&!/^[A-Za-z0-9_-]{16,100}$/.test(idempotencyKey))throw Object.assign(Error('Identificador da tentativa de venda inválido.'),{statusCode:400});
+ const requestHash=idempotencyKey?saleRequestFingerprint(req):null;
  return tx(async c=>{
+  if(idempotencyKey){
+   // Serialize concurrent submissions with the same request key before lookup.
+   // The lock is transaction-scoped and released automatically on commit/rollback.
+   await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[idempotencyKey]);
+   const existing=(await c.query('SELECT * FROM sales WHERE idempotency_key=$1',[idempotencyKey])).rows[0];
+   if(existing){
+    if(existing.request_hash!==requestHash)throw Object.assign(Error('Esta tentativa já foi registrada com dados diferentes. Confira a lista de vendas antes de iniciar outra tentativa.'),{statusCode:409});
+    return {...existing,idempotent_replay:true};
+   }
+  }
   let cfg=await currentSettings(c),cs=(await c.query("SELECT * FROM cash_sessions WHERE status='OPEN' ORDER BY id DESC LIMIT 1 FOR UPDATE")).rows[0];
   if(!cs&&cfg.sales?.require_open_cash!==false)throw Error('Abra o caixa antes de vender.');if(!cs)cs={id:null};
   let items=req.body.items||[];if(!items.length)throw Error('Carrinho vazio.');
@@ -154,7 +177,7 @@ async function finalizeSaleCore(req){
   let discount=subtotal*discountPct/100,total=Math.max(0,subtotal-discount),pays=req.body.payments||[];
   if(!pays.length)pays=[{method:req.body.payment_method||'Dinheiro',amount:total}];
   let paid=pays.reduce((a,x)=>a+(+x.amount||0),0);if(Math.abs(paid-total)>.01)throw Error('A soma dos pagamentos deve ser igual ao total da venda.');
-  let sale=(await c.query('INSERT INTO sales(customer_id,user_id,seller_id,cash_session_id,payment_method,subtotal,total,discount,discount_percent,cmv) VALUES($1,$2,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[req.body.customer_id||null,req.user.id,cs.id,pays.length>1?'Misto':pays[0].method,subtotal,total,discount,discountPct,cmv])).rows[0];
+  let sale=(await c.query('INSERT INTO sales(customer_id,user_id,seller_id,cash_session_id,payment_method,subtotal,total,discount,discount_percent,cmv,idempotency_key,request_hash) VALUES($1,$2,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',[req.body.customer_id||null,req.user.id,cs.id,pays.length>1?'Misto':pays[0].method,subtotal,total,discount,discountPct,cmv,idempotencyKey||null,requestHash])).rows[0];
   for(let i of checked){let before=+i.p.stock,after=before-i.qty;await c.query('INSERT INTO sale_items(sale_id,product_id,description,qty,unit_price,cost,price_type) VALUES($1,$2,$3,$4,$5,$6,$7)',[sale.id,i.p.id,i.p.name,i.qty,i.price,i.p.cost,i.type]);await c.query('UPDATE products SET stock=$1 WHERE id=$2',[after,i.p.id]);await c.query("INSERT INTO stock_movements(product_id,user_id,kind,qty,balance_before,balance_after,reference_type,reference_id) VALUES($1,$2,'VENDA',$3,$4,$5,'SALE',$6)",[i.p.id,req.user.id,-i.qty,before,after,sale.id])}
   for(let p of pays){let method=p.method,amount=+p.amount;if(!Number.isFinite(amount)||amount<0)throw Error('Valor de pagamento inválido.');await c.query('INSERT INTO sale_payments(sale_id,method,amount) VALUES($1,$2,$3)',[sale.id,method,amount]);if(method==='Crediário')await c.query("INSERT INTO financial_entries(kind,description,amount,status,reference_type,reference_id) VALUES('RECEBER',$1,$2,'PENDENTE','SALE',$3)",['Crediário venda #'+sale.id,amount,sale.id]);else if(method==='Dinheiro'&&cs.id)await c.query("INSERT INTO cash_movements(session_id,user_id,kind,description,amount) VALUES($1,$2,'VENDA',$3,$4)",[cs.id,req.user.id,'Venda #'+sale.id+' • Dinheiro',amount])}
   if(req.body.quote_id){let q=(await c.query('SELECT * FROM quotes WHERE id=$1 FOR UPDATE',[req.body.quote_id])).rows[0];if(!q||q.status!=='ABERTO')throw Error('Orçamento não está mais disponível para conversão.');await c.query("UPDATE quotes SET status='CONVERTIDO',converted_sale_id=$1 WHERE id=$2",[sale.id,q.id]);await audit(c,req.user.id,'Orçamento convertido no PDV','#'+q.id+' -> venda #'+sale.id)}
@@ -162,9 +185,18 @@ async function finalizeSaleCore(req){
   await audit(c,req.user.id,'Venda finalizada',detail);return sale;
  });
 }
-async function saleRoute(req,res){try{res.status(201).json(await finalizeSaleCore(req))}catch(e){res.status(400).json({error:e.message})}}
+async function saleRoute(req,res){
+ try{const sale=await finalizeSaleCore(req),replay=!!sale.idempotent_replay;res.status(replay?200:201).json({...safeSaleResponse(sale),...(replay?{idempotent_replay:true}:{})})}
+ catch(e){
+  const key=String(req.body?.request_id||'').trim();
+  if(key&&/^[A-Za-z0-9_-]{16,100}$/.test(key)){
+   try{const existing=(await pool.query('SELECT * FROM sales WHERE idempotency_key=$1',[key])).rows[0];if(existing){if(existing.request_hash!==saleRequestFingerprint(req))return res.status(409).json({error:'Esta tentativa já foi registrada com dados diferentes. Confira a lista de vendas antes de iniciar outra tentativa.'});return res.status(200).json({...safeSaleResponse(existing),idempotent_replay:true})}}catch(recoveryError){console.error('Falha ao recuperar resultado de venda idempotente:',recoveryError)}
+  }
+  res.status(e.statusCode||400).json({error:e.message||'Não foi possível finalizar a venda.'})
+ }
+}
 app.post('/api/sales',auth,roles('Administrador','Gerente','Vendedor','Caixa'),saleRoute);
-app.get('/api/sales',auth,async(req,res)=>res.json((await pool.query('SELECT s.*,u.name seller,c.name customer FROM sales s JOIN users u ON u.id=s.user_id LEFT JOIN customers c ON c.id=s.customer_id ORDER BY s.id DESC LIMIT 200')).rows));
+app.get('/api/sales',auth,async(req,res)=>res.json((await pool.query('SELECT s.id,s.customer_id,s.user_id,s.seller_id,s.cash_session_id,s.status,s.payment_method,s.subtotal,s.total,s.discount,s.discount_percent,s.cmv,s.created_at,s.cancelled_at,s.cancelled_by,s.cancel_reason,u.name seller,c.name customer FROM sales s JOIN users u ON u.id=s.user_id LEFT JOIN customers c ON c.id=s.customer_id ORDER BY s.id DESC LIMIT 200')).rows));
 app.get('/api/stock/movements',auth,async(req,res)=>res.json((await pool.query('SELECT m.*,p.name product,u.name user_name FROM stock_movements m JOIN products p ON p.id=m.product_id LEFT JOIN users u ON u.id=m.user_id ORDER BY m.id DESC LIMIT 300')).rows));
 app.get('/api/audit',auth,roles('Administrador','Gerente'),async(req,res)=>res.json((await pool.query('SELECT a.*,u.name user_name FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT 300')).rows));
 // ConstruGest 3.2.9 - Financeiro Profissional
@@ -372,7 +404,7 @@ app.get('/api/dashboard-v23',auth,roles('Administrador','Gerente'),async(req,res
  pool.query("SELECT si.description,sum(si.qty) qty,sum(si.qty*si.unit_price) revenue FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE s.status='FINALIZADA' AND s.created_at>=date_trunc('month',now()) GROUP BY si.description ORDER BY revenue DESC LIMIT 5"),
  pool.query("SELECT p.id,p.name,p.stock,p.cost FROM products p WHERE p.active=true AND p.stock>0 AND NOT EXISTS(SELECT 1 FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE si.product_id=p.id AND s.status='FINALIZADA' AND s.created_at>now()-interval '60 days') ORDER BY p.stock*p.cost DESC LIMIT 5")
 ]);res.json({today:today.rows[0],month:month.rows[0],financial:fin.rows,low:low.rows,top:top.rows,dead:dead.rows})}catch(e){res.status(500).json({error:e.message})}});
-app.get('/api/stock/replenishment',auth,async(req,res)=>{let q=await pool.query("SELECT id,code,name,brand,unit,stock,min_stock,max_stock,cost,retail,GREATEST(COALESCE(max_stock,0)-stock,COALESCE(min_stock,0)-stock,0) suggested,CASE WHEN stock<=0 THEN 'SEM ESTOQUE' WHEN stock<=min_stock THEN 'REPOR' ELSE 'OK' END status FROM products WHERE active=true AND stock<=min_stock ORDER BY CASE WHEN stock<=0 THEN 0 ELSE 1 END,(min_stock-stock) DESC,name");res.json(q.rows)});
+app.get('/api/stock/replenishment',auth,async(req,res)=>{let q=await pool.query("SELECT id,code,name,brand,unit,stock,min_stock,max_stock,cost,retail,GREATEST(COALESCE(max_stock,0)-stock,COALESCE(min_stock,0)-stock,0) suggested,CASE WHEN stock<=0 THEN 'SEM ESTOQUE' WHEN stock<=min_stock THEN 'REPOR' ELSE 'OK' END status FROM products WHERE active=true AND stock<=min_stock ORDER BY CASE WHEN stock<=0 THEN 0 ELSE 1 END,(min_stock-stock) DESC,name");const canCost=await userPerm(req.user.id,'view_cost');res.json(q.rows.map(x=>productForUser(x,canCost)))});
 app.get('/api/stock/intelligence',auth,roles('Administrador','Gerente','Estoquista'),async(req,res)=>{try{
   const data=await getStockIntelligence(pool,{days:req.query.days});
   const canCost=await userPerm(req.user.id,'view_cost');
@@ -458,69 +490,9 @@ app.post('/api/backup/restore',auth,roles('Administrador'),async(req,res)=>{try{
 
 app.use('/api',(req,res)=>res.status(404).json({error:'Rota não encontrada.'}));
 
-async function applyEmergencyMasterUserReset(){
-  const done=await pool.query("SELECT 1 FROM schema_migrations WHERE version=444 LIMIT 1");
-  if(done.rowCount)return;
-  const admin=(await pool.query("SELECT id FROM users WHERE role='Administrador' ORDER BY id LIMIT 1")).rows[0];
-  if(admin){
-    await pool.query("UPDATE users SET name='Master',email='master',active=true,force_change_password=true WHERE id=$1",[admin.id]);
-    await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[admin.id,'Usuário administrativo redefinido','Login temporário alterado para master']);
-  }
-  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(444,'Porto Prime 4.4.4 - reset do usuário administrativo') ON CONFLICT(version) DO NOTHING");
-}
-async function applyEmergencyMasterPasswordReset(){
-  const done=await pool.query("SELECT 1 FROM schema_migrations WHERE version=445 LIMIT 1");
-  if(done.rowCount)return;
-  const admin=(await pool.query("SELECT id FROM users WHERE role='Administrador' ORDER BY id LIMIT 1")).rows[0];
-  if(admin){
-    const hash=await bcrypt.hash('master',12);
-    await pool.query("UPDATE users SET name='Master',email='master',password_hash=$1,active=true,force_change_password=true WHERE id=$2",[hash,admin.id]);
-    await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[admin.id,'Senha administrativa temporária redefinida','Login temporário: master']);
-  }
-  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(445,'Porto Prime 4.4.7 - senha temporária master') ON CONFLICT(version) DO NOTHING");
-}
-async function applyEmergencyMasterReset446(){
-  const done=await pool.query("SELECT 1 FROM schema_migrations WHERE version=446 LIMIT 1");
-  if(done.rowCount)return;
-  const admin=(await pool.query("SELECT id FROM users WHERE role='Administrador' ORDER BY id LIMIT 1")).rows[0];
-  const hash=await bcrypt.hash('master',12);
-  if(admin){
-    await pool.query("UPDATE users SET name='Master',email='master',password_hash=$1,active=true,force_change_password=true WHERE id=$2",[hash,admin.id]);
-    await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[admin.id,'Acesso administrativo recuperado','Porto Prime 4.4.7 redefiniu usuário e senha temporários']);
-  }else{
-    const q=await pool.query("INSERT INTO users(name,email,password_hash,role,active,force_change_password) VALUES('Master','master',$1,'Administrador',true,true) RETURNING id",[hash]);
-    await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[q.rows[0].id,'Acesso administrativo criado','Porto Prime 4.4.7 criou acesso temporário master']);
-  }
-  loginAttempts.clear();
-  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(446,'Porto Prime 4.4.7 - recuperação definitiva do acesso master') ON CONFLICT(version) DO NOTHING");
-}
-async function applyEmergencyMasterReset447(){
-  const done=await pool.query("SELECT 1 FROM schema_migrations WHERE version=447 LIMIT 1");
-  if(done.rowCount)return;
-  const hash=await bcrypt.hash('master',12);
-  const admin=(await pool.query("SELECT id FROM users WHERE role='Administrador' ORDER BY id LIMIT 1")).rows[0];
-  let adminId;
-  if(admin){
-    adminId=admin.id;
-    await pool.query("UPDATE users SET name='Master',email='master',password_hash=$1,active=true,force_change_password=true WHERE id=$2",[hash,adminId]);
-  }else{
-    const q=await pool.query("INSERT INTO users(name,email,password_hash,role,active,force_change_password) VALUES('Master','master',$1,'Administrador',true,true) RETURNING id",[hash]);
-    adminId=q.rows[0].id;
-  }
-  const verify=(await pool.query("SELECT id,email,active,password_hash FROM users WHERE id=$1",[adminId])).rows[0];
-  if(!verify||String(verify.email).toLowerCase()!=='master'||verify.active!==true||!await bcrypt.compare('master',verify.password_hash)){
-    throw Error('Falha ao preparar o acesso temporário master.');
-  }
-  await pool.query("INSERT INTO audit_logs(user_id,action,detail) VALUES($1,$2,$3)",[adminId,'Acesso administrativo validado','Porto Prime 4.4.7 confirmou usuário e senha temporários']);
-  await pool.query("INSERT INTO schema_migrations(version,description) VALUES(447,'Porto Prime 4.4.7 - validação definitiva do acesso master') ON CONFLICT(version) DO NOTHING");
-  loginAttempts.clear();
-}
 async function boot(){
+  recoverySecurity.ensureCode();
   await initDb();
-  await applyEmergencyMasterUserReset();
-  await applyEmergencyMasterPasswordReset();
-  await applyEmergencyMasterReset446();
-  await applyEmergencyMasterReset447();
   let n=+(await pool.query('SELECT count(*) n FROM users')).rows[0].n;
   if(!n){
     let h=await bcrypt.hash('Admin@123',12);
@@ -528,7 +500,7 @@ async function boot(){
     await pool.query("INSERT INTO customers(name,type) VALUES('Consumidor Final','Consumidor')");
     await pool.query("INSERT INTO products(code,name,brand,category,unit,stock,min_stock,max_stock,cost,retail,wholesale,wholesale_min,promo) VALUES ('001','Cimento 50kg','Exemplo','Cimento','SC',35,10,80,28,39.90,36,10,34.90),('002','Torneira Jardim','Krona','Hidráulica','UN',8,10,50,2.10,4.99,4.20,10,3.99),('003','Lâmpada LED 9W','Exemplo','Elétrica','UN',80,20,120,2.20,3.50,3.10,20,2.99)");
   }
-  app.listen(PORT,HOST,()=>{console.log(`Porto Prime 4.4.7 em http://${HOST}:${PORT}`);setImmediate(()=>autoBackupIfDue())});
+  app.listen(PORT,HOST,()=>{console.log(`Porto Prime ${APP_VERSION} em http://${HOST}:${PORT}`);setImmediate(()=>autoBackupIfDue())});
   setInterval(autoBackupIfDue,60*60*1000).unref?.();
 }
 boot().catch(e=>{console.error(e);process.exit(1)});
