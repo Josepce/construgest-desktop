@@ -1,0 +1,14 @@
+const fs=require('fs');
+const assert=require('assert');
+const s=fs.readFileSync('src/server.js','utf8');
+const extract=(start,end)=>{const a=s.indexOf(start);assert(a>=0,'rota ausente: '+start);const b=s.indexOf(end,a+start.length);assert(b>a,'fim de rota ausente: '+end);return s.slice(a,b)};
+const replenishment=extract("app.get('/api/stock/replenishment'","app.get('/api/stock/intelligence'");
+assert(replenishment.includes("await userPerm(req.user.id,'view_cost')"),'reposição não verifica permissão de custo');
+assert(replenishment.includes("q.rows.map(x=>productForUser(x,canCost))"),'reposição não remove custo não autorizado');
+const products=extract("app.get('/api/products',auth","// ConstruGest 3.5.0");
+assert(products.includes("productForUser(x,canCost)"),'lista de produtos não remove custos');
+const search=extract("app.get('/api/products/search'","app.get('/api/products/:id/history'");
+assert(search.includes("productForUser(x,canCost)"),'busca de produtos não remove custos');
+const backup=extract("app.get('/api/backup/export'","app.get('/api/backup/status'");
+assert(backup.includes("roles('Administrador')"),'exportação de backup sem restrição administrativa');
+console.log('OK: permissões essenciais de custo e backup verificadas.');
