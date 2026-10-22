@@ -1,4 +1,4 @@
-name: Porto Prime 4.4.8 - Validacao e build Windows
+name: Porto Prime - Validacao e build Windows
 
 on:
   pull_request:
