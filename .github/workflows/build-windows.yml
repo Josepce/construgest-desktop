@@ -149,6 +149,15 @@ jobs:
 
           Write-Host "OK: $zip - $sizeMB MB"
 
+          # Integridade para quem baixar executaveis e ZIP pela Release
+          $hashFiles = @($files + $zip)
+          $hashLines = foreach ($file in $hashFiles) {
+            $hash = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLowerInvariant()
+            "$hash  $(Split-Path $file -Leaf)"
+          }
+          $hashLines | Set-Content -Path "dist/SHA256SUMS.txt" -Encoding ascii
+          Get-Content "dist/SHA256SUMS.txt"
+
       - name: Disponibilizar arquivos para download
         uses: actions/upload-artifact@v4
         continue-on-error: true # A Release continua sendo a fonte permanente caso a cota temporaria esteja cheia
@@ -159,6 +168,7 @@ jobs:
             dist/PortoPrime-*.zip
             dist/PortoPrime-*.yml
             dist/PortoPrime-*.blockmap
+            dist/SHA256SUMS.txt
           if-no-files-found: error
           compression-level: 0
 
@@ -175,7 +185,8 @@ jobs:
             "dist/PortoPrime-Portable-$version-x64.exe",
             "dist/PortoPrime-Setup-$version-x64.exe",
             "dist/PortoPrime-Atualizacao-$version-x64.exe",
-            "dist/PortoPrime-$version-Windows.zip"
+            "dist/PortoPrime-$version-Windows.zip",
+            "dist/SHA256SUMS.txt"
           )
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
