@@ -9,6 +9,8 @@ const checks=[
   [server.includes("/api/auth/recover-admin"),'rota de redefinição de senha ausente'],
   [server.includes("const localRequest=isLocalLoginRequest;"),'proteção de recuperação local ausente'],
   [server.includes("PASSWORD-RECOVERY"),'backup antes da recuperação ausente'],
+  [server.includes('recoverySecurity.verify(')&&server.includes('recoverySecurity.ensureCode()'),'recuperação sem código local secreto'],
+  [app.includes('recoveryCode')&&index.includes('id="recoveryCode"'),'campo do código de recuperação ausente'],
   [server.includes("loginAttempts.clear()"),'limpeza do bloqueio de login ausente'],
   [!server.includes("applyEmergencyMasterUserReset")&&!server.includes("applyEmergencyMasterPasswordReset")&&!server.includes("applyEmergencyMasterReset446")&&!server.includes("applyEmergencyMasterReset447"),'reset automático de credenciais temporárias ainda existe'],
   [!server.includes("bcrypt.hash('master',12)"),'senha master temporária ainda é gerada automaticamente'],
