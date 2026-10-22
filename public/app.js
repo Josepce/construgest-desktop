@@ -32,12 +32,12 @@ async function togglePasswordRecovery(){
   }
 }
 async function savePasswordRecovery(){
-  const email=document.getElementById('recoveryEmail')?.value||'',machineId=document.getElementById('recoveryMachine')?.value||'',p=document.getElementById('recoveryPassword')?.value||'',p2=document.getElementById('recoveryPassword2')?.value||'',msg=document.getElementById('recoveryMsg');
+  const email=document.getElementById('recoveryEmail')?.value||'',machineId=document.getElementById('recoveryMachine')?.value||'',recoveryCode=document.getElementById('recoveryCode')?.value||'',p=document.getElementById('recoveryPassword')?.value||'',p2=document.getElementById('recoveryPassword2')?.value||'',msg=document.getElementById('recoveryMsg');
   if(p.length<6){if(msg){msg.className='danger';msg.textContent='Use pelo menos 6 caracteres.'}return}
   if(p!==p2){if(msg){msg.className='danger';msg.textContent='As senhas não conferem.'}return}
   try{
     if(msg){msg.className='muted';msg.textContent='Redefinindo senha...'}
-    const r=await fetch('/api/auth/recover-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,machineId,password:p})});
+    const r=await fetch('/api/auth/recover-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,machineId,recoveryCode,password:p})});
     const j=await r.json().catch(()=>({}));
     if(!r.ok)throw Error(j.error||'Não foi possível redefinir a senha.');
     if(msg){msg.className='ok';msg.textContent='Senha redefinida com sucesso. Use a nova senha para entrar.'}
